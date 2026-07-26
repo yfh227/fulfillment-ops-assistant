@@ -89,6 +89,15 @@ def build_context(docs: list[tuple[str, str]]) -> str:
     return "\n\n".join(blocks)
 
 
+def render_answer(answer: str) -> None:
+    """Display an answer, escaping $ so Streamlit doesn't parse it as LaTeX.
+
+    Rate and invoice figures come back as paired amounts ("$250 - $2,500"),
+    which Streamlit would otherwise treat as inline math and mangle.
+    """
+    st.markdown(answer.replace("$", r"\$"))
+
+
 def ask_claude(question: str, context: str) -> str:
     client = get_bedrock_client()
     prompt = (
@@ -125,7 +134,7 @@ if st.button("Ask") and question.strip():
     with st.spinner("Asking Claude..."):
         try:
             answer = ask_claude(question, build_context(documents))
-            st.write(answer)
+            render_answer(answer)
         except Exception as e:
             st.error(f"Request failed: {e}")
 
