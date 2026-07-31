@@ -64,6 +64,7 @@ question = st.text_area("Question")
 
 if st.button("Ask") and question.strip():
     init_usage_db()
+    st.session_state.feedback = None
     with st.spinner("Asking Claude..."):
         try:
             result = core.ask(
@@ -75,16 +76,43 @@ if st.button("Ask") and question.strip():
             st.session_state.last_log_id = usage_log.log_call(
                 question, error=e, documents=documents
             )
-            st.error(f"Request failed: {e}")
+            st.session_state.last_result = None
+            st.session_state.last_error = str(e)
         else:
             st.session_state.last_log_id = usage_log.log_call(
                 question, result=result, documents=documents
             )
-            render_answer(result["answer"])
+            st.session_state.last_result = result
+            st.session_state.last_error = None
+
+# Everything below is driven by session state rather than the Ask block, so it
+# survives the rerun that clicking a feedback button triggers. Rendered inside
+# the Ask block, the answer and its buttons would disappear on the first click.
+if st.session_state.get("last_error"):
+    st.error(f"Request failed: {st.session_state.last_error}")
+
+last_result = st.session_state.get("last_result")
+if last_result:
+    render_answer(last_result["answer"])
+    st.caption(
+        f"{last_result['latency_ms']} ms · "
+        f"{last_result['input_tokens']:,} in / "
+        f"{last_result['output_tokens']:,} out tokens"
+    )
+
+    log_id = st.session_state.get("last_log_id")
+    if log_id is not None:
+        up, down, _ = st.columns([1, 1, 10])
+        if up.button("👍", key="feedback_up"):
+            usage_log.record_feedback(log_id, "up")
+            st.session_state.feedback = "up"
+        if down.button("👎", key="feedback_down"):
+            usage_log.record_feedback(log_id, "down")
+            st.session_state.feedback = "down"
+
+        if st.session_state.get("feedback"):
             st.caption(
-                f"{result['latency_ms']} ms · "
-                f"{result['input_tokens']:,} in / "
-                f"{result['output_tokens']:,} out tokens"
+                f"Feedback recorded: {st.session_state.feedback} (row {log_id})"
             )
 
 
