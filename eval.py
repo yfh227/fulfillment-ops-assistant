@@ -131,6 +131,16 @@ REFUSAL_PHRASES = (
     "outside the scope",
     "not in the provided documents",
     "not in the reference documents",
+    # Added from sampled misses: the model sometimes moves the negation off the
+    # documents ("the documents do not mention X") and onto the thing itself
+    # ("there is no mention of X" / "no X mentioned anywhere in the documents").
+    # These two are disjoint - neither alone covers both shapes. "anywhere in
+    # the" is deliberately truncated so an inserted adjective ("provided",
+    # "reference") still matches. Validated over 20 sampled answers: together
+    # they caught 3/3 previously-missed refusals with no false positive on the
+    # complete-answer cases, and neither appears in the source documents.
+    "no mention of",
+    "anywhere in the",
 )
 
 FLAG_MARKER = "NEEDS HUMAN REVIEW"
