@@ -75,7 +75,9 @@ CASES = [
         ),
         "expect_citation": None,
         "should_refuse": True,
-        "should_flag": False,
+        # A false premise about free shipping is money-adjacent, so rule 4's
+        # "err toward flagging" correctly applies.
+        "should_flag": True,
         "must_contain": None,
     },
     {
@@ -133,6 +135,14 @@ REFUSAL_PHRASES = (
 
 FLAG_MARKER = "NEEDS HUMAN REVIEW"
 
+# A refusal phrase buried deep in a long answer is a scope caveat ("what the
+# documents do not cover"), not a refusal. Measured over repeated runs: genuine
+# refusals ran 55-188 words, while complete answers that merely note a limit ran
+# 441-591. 250 sits in that gap. Position alone cannot separate them - a real
+# partial refusal was seen at 40.8% while a false positive appeared at 33.8%.
+REFUSAL_MAX_WORDS = 250
+REFUSAL_HEAD_FRACTION = 0.15
+
 
 def _credentials() -> tuple[str | None, str | None]:
     """Read AWS creds from Streamlit secrets; fall back to boto3's own chain."""
@@ -145,8 +155,19 @@ def _credentials() -> tuple[str | None, str | None]:
 
 
 def refused(answer: str) -> bool:
+    """True only when a refusal phrase signals an actual refusal.
+
+    Counts as a refusal when the phrase appears in the opening of the answer,
+    or when the answer is short overall. A phrase appearing late in a long
+    answer is treated as a scope caveat within a complete answer.
+    """
     lowered = answer.lower()
-    return any(phrase in lowered for phrase in REFUSAL_PHRASES)
+    positions = [lowered.find(p) for p in REFUSAL_PHRASES if p in lowered]
+    if not positions:
+        return False
+    if len(answer.split()) < REFUSAL_MAX_WORDS:
+        return True
+    return (min(positions) / len(answer)) <= REFUSAL_HEAD_FRACTION
 
 
 def grade(case: dict, answer: str) -> dict[str, bool | None]:
