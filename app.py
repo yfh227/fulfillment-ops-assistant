@@ -1,6 +1,7 @@
 import streamlit as st
 
 import core
+import usage_log
 
 st.set_page_config(page_title="Fulfillment Ops Assistant", layout="wide")
 
@@ -26,6 +27,12 @@ def get_s3_client():
 @st.cache_data(show_spinner="Loading reference documents...")
 def load_documents() -> list[tuple[str, str]]:
     return core.load_documents(get_s3_client())
+
+
+@st.cache_resource
+def init_usage_db() -> bool:
+    usage_log.init()
+    return True
 
 
 def render_answer(answer: str) -> None:
@@ -56,6 +63,7 @@ st.subheader("Ask Claude")
 question = st.text_area("Question")
 
 if st.button("Ask") and question.strip():
+    init_usage_db()
     with st.spinner("Asking Claude..."):
         try:
             result = core.ask(
@@ -63,14 +71,21 @@ if st.button("Ask") and question.strip():
                 core.build_context(documents),
                 get_bedrock_client(),
             )
+        except Exception as e:
+            st.session_state.last_log_id = usage_log.log_call(
+                question, error=e, documents=documents
+            )
+            st.error(f"Request failed: {e}")
+        else:
+            st.session_state.last_log_id = usage_log.log_call(
+                question, result=result, documents=documents
+            )
             render_answer(result["answer"])
             st.caption(
                 f"{result['latency_ms']} ms · "
                 f"{result['input_tokens']:,} in / "
                 f"{result['output_tokens']:,} out tokens"
             )
-        except Exception as e:
-            st.error(f"Request failed: {e}")
 
 
 if __name__ == "__main__":

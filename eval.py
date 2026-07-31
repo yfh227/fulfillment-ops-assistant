@@ -13,12 +13,15 @@ import tomllib
 from pathlib import Path
 
 from core import (
+    FLAG_MARKER,
+    REFUSAL_PHRASES,
     SYSTEM_PROMPT,
     ask,
     build_context,
     get_bedrock_client,
     get_s3_client,
     load_documents,
+    refused,
 )
 
 CASES = [
@@ -102,58 +105,6 @@ CASES = [
     },
 ]
 
-# Any of these appearing in an answer counts as a refusal / admitted gap.
-REFUSAL_PHRASES = (
-    "i don't know",
-    "i do not know",
-    "don't know",
-    "do not know",
-    "not covered",
-    "does not cover",
-    "doesn't cover",
-    "do not cover",
-    "does not contain",
-    "doesn't contain",
-    "do not contain",
-    "does not address",
-    "doesn't address",
-    "do not address",
-    "not addressed",
-    "does not mention",
-    "doesn't mention",
-    "do not mention",
-    "not mentioned",
-    "does not specify",
-    "doesn't specify",
-    "do not specify",
-    "silent on",
-    "no information",
-    "outside the scope",
-    "not in the provided documents",
-    "not in the reference documents",
-    # Added from sampled misses: the model sometimes moves the negation off the
-    # documents ("the documents do not mention X") and onto the thing itself
-    # ("there is no mention of X" / "no X mentioned anywhere in the documents").
-    # These two are disjoint - neither alone covers both shapes. "anywhere in
-    # the" is deliberately truncated so an inserted adjective ("provided",
-    # "reference") still matches. Validated over 20 sampled answers: together
-    # they caught 3/3 previously-missed refusals with no false positive on the
-    # complete-answer cases, and neither appears in the source documents.
-    "no mention of",
-    "anywhere in the",
-)
-
-FLAG_MARKER = "NEEDS HUMAN REVIEW"
-
-# A refusal phrase buried deep in a long answer is a scope caveat ("what the
-# documents do not cover"), not a refusal. Measured over repeated runs: genuine
-# refusals ran 55-188 words, while complete answers that merely note a limit ran
-# 441-591. 250 sits in that gap. Position alone cannot separate them - a real
-# partial refusal was seen at 40.8% while a false positive appeared at 33.8%.
-REFUSAL_MAX_WORDS = 250
-REFUSAL_HEAD_FRACTION = 0.15
-
-
 def _credentials() -> tuple[str | None, str | None]:
     """Read AWS creds from Streamlit secrets; fall back to boto3's own chain."""
     path = Path(__file__).parent / ".streamlit" / "secrets.toml"
@@ -162,22 +113,6 @@ def _credentials() -> tuple[str | None, str | None]:
     with open(path, "rb") as f:
         secrets = tomllib.load(f)
     return secrets.get("AWS_ACCESS_KEY_ID"), secrets.get("AWS_SECRET_ACCESS_KEY")
-
-
-def refused(answer: str) -> bool:
-    """True only when a refusal phrase signals an actual refusal.
-
-    Counts as a refusal when the phrase appears in the opening of the answer,
-    or when the answer is short overall. A phrase appearing late in a long
-    answer is treated as a scope caveat within a complete answer.
-    """
-    lowered = answer.lower()
-    positions = [lowered.find(p) for p in REFUSAL_PHRASES if p in lowered]
-    if not positions:
-        return False
-    if len(answer.split()) < REFUSAL_MAX_WORDS:
-        return True
-    return (min(positions) / len(answer)) <= REFUSAL_HEAD_FRACTION
 
 
 def grade(case: dict, answer: str) -> dict[str, bool | None]:
