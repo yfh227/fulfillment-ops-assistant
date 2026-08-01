@@ -1,6 +1,7 @@
 import streamlit as st
 
 import core
+import stats
 import usage_log
 
 st.set_page_config(page_title="Fulfillment Ops Assistant", layout="wide")
@@ -114,6 +115,24 @@ if last_result:
             st.caption(
                 f"Feedback recorded: {st.session_state.feedback} (row {log_id})"
             )
+
+
+# Rendered last on purpose. st.sidebar places content in the sidebar wherever
+# it is called from, so running after the Ask block means these figures include
+# the question just logged rather than trailing it by one.
+with st.sidebar:
+    st.subheader("Usage")
+    usage = stats.summary_stats()
+    if not usage["answered"]:
+        st.caption("No usage recorded yet.")
+    else:
+        st.metric("Questions asked", f"{usage['answered']:,}")
+        st.metric("Flagged for review", f"{usage['pct_flagged']}%")
+        st.metric("Refused", f"{usage['pct_refused']}%")
+        st.metric(
+            "Avg latency",
+            f"{usage['avg_ms']:,.0f} ms" if usage["avg_ms"] is not None else "—",
+        )
 
 
 if __name__ == "__main__":

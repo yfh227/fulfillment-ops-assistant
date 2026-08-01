@@ -106,6 +106,41 @@ def _heading(title: str) -> None:
     print("-" * len(title))
 
 
+def summary_stats(db_path: Path = DB_PATH) -> dict:
+    """Headline figures for the app sidebar.
+
+    Uses the same queries - and therefore the same error-row exclusions - as
+    report(), so the sidebar cannot disagree with the CLI. Returns zeros rather
+    than raising when the database is missing or empty, and never creates the
+    file as a side effect of being asked.
+    """
+    empty = {
+        "answered": 0,
+        "pct_flagged": 0.0,
+        "pct_refused": 0.0,
+        "avg_ms": None,
+        "measured": 0,
+    }
+    if not Path(db_path).exists():
+        return empty
+
+    try:
+        with connect(db_path) as conn:
+            g = _rows(conn, GUARDRAIL_RATES)[0]
+            p = _rows(conn, PERFORMANCE)[0]
+    except sqlite3.OperationalError:
+        # Database file exists but the table has not been created yet.
+        return empty
+
+    return {
+        "answered": g["answered"],
+        "pct_flagged": _pct(g["flagged"], g["answered"]),
+        "pct_refused": _pct(g["refused"], g["answered"]),
+        "avg_ms": p["avg_ms"] if p["measured"] else None,
+        "measured": p["measured"],
+    }
+
+
 def report(db_path: Path = DB_PATH) -> None:
     """Print every section to stdout."""
     with connect(db_path) as conn:
