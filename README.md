@@ -119,3 +119,65 @@ Pass a path to report on a different database:
 ```bash
 ./venv/Scripts/python.exe stats.py path/to/other.db
 ```
+
+## Cost and architecture decisions
+
+The reference corpus grew from 7 documents to 23 — **7,291 to 77,339 tokens, a
+10.6x increase in what every call carries**. The assistant passes the whole
+corpus as context on every question; there is no retrieval layer. That decision
+was measured rather than assumed, and the measurements are committed:
+
+- [baseline_direct_context.md](baseline_direct_context.md) — the uncached "before"
+- [baseline_prompt_caching.md](baseline_prompt_caching.md) — caching measured against it
+
+### What it costs
+
+| | Cost per 100 questions | Eval |
+|---|---|---|
+| Direct context, uncached | **$27.20** | 8/8 |
+| Direct context, prompt caching | **$4.86** | 8/8 |
+
+Both rows use the same system prompt, so caching is the only variable. The
+direct-context baseline file records **$27.23** rather than $27.20 because it was
+captured before a later fix to the citation rule lengthened the prompt by 165
+tokens; the difference is the prompt, not the method.
+
+Bedrock prompt caching removed **82% of the cost for a one-line change** — a
+`cachePoint` after the document context block — with no measured quality loss
+across three runs in each condition. Billed-at-full-rate input fell from 79,506
+tokens per call to about 21, the question text alone.
+
+The worst case is bounded and cheap to reason about. If the cache were written on
+every call and never hit at all, the cost would be **$33.77/100** versus $27.20
+uncached — a 24% penalty, not a cliff. At any cadence above one question per five
+minutes the cache stays warm and the figure sits near $4.86. Caching is enabled
+per call via `core.ask(..., use_cache=True)`; the harness honours
+`EVAL_PROMPT_CACHE=1`.
+
+### What this means for retrieval
+
+**Caching removed the cost argument for building retrieval.** Retrieval attacks
+input tokens, and caching has already reduced billed input by 99.97%. Output is
+now 20% of the bill (up from 4%), and no retrieval strategy reduces output — that
+is a floor neither approach crosses.
+
+**The remaining trigger for retrieval is corpus scale, not cost.** At 77,339
+tokens the corpus consumes **7.93% of Sonnet 4.6's 1M context window**. The corpus
+could grow roughly **12x** before the window binds. At that point retrieval stops
+being an optimization and becomes necessary. Until then it is optional.
+
+**Retrieval also adds a failure mode that direct context structurally cannot
+have.** When the whole corpus is in context, the model may reason poorly, but it
+cannot fail to see a document that would have answered the question. Retrieval
+introduces exactly that: retrieve the wrong documents and the model answers
+confidently from an incomplete set, with no signal that anything is missing. The
+grounding rules in the system prompt do not protect against this — the model has
+no way to know what it was not shown. Adopting retrieval would require new eval
+cases measuring retrieval quality itself, separate from the eight that measure
+answer quality.
+
+### Current position
+
+Prompt caching is measured and available but **not yet enabled by default in the
+app**; `use_cache` defaults to `False` so the uncached baseline stays reproducible.
+No retrieval layer has been built.
