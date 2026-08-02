@@ -106,31 +106,44 @@ REFUSAL_PHRASES = (
     # complete-answer cases, and neither appears in the source documents.
     "no mention of",
     "anywhere in the",
+    # Added from case 6 sampling: correcting a false premise, the model often
+    # attaches the negation to its own search rather than to the documents
+    # ("I cannot find any policy that...") and never says "I don't know".
+    # Present in 9 of 10 sampled case 6 answers, so it carries detection rather
+    # than patching a single sample.
+    "cannot find any",
 )
 
-# A refusal phrase buried deep in a long answer is a scope caveat ("what the
-# documents do not cover"), not a refusal. Measured over repeated runs: genuine
-# refusals ran 55-188 words, while complete answers that merely note a limit ran
-# 441-591. 250 sits in that gap. Position alone cannot separate them - a real
-# partial refusal was seen at 40.8% while a false positive appeared at 33.8%.
-REFUSAL_MAX_WORDS = 250
-REFUSAL_HEAD_FRACTION = 0.15
+# A refusal phrase in a long, complete answer is not a refusal. It is either a
+# scope caveat ("what the documents do not cover") or a clarifying preamble
+# ("I don't know which tier this client is") ahead of a full answer. Length
+# separates the two cleanly; position does not.
+#
+# Measured over 40 stored answers (eval_corpus.json): genuine refusals ran
+# 26-259 words, while complete answers containing a refusal phrase ran 484-721.
+# 400 sits in that 225-word gap, 141 above the longest refusal and 84 below the
+# shortest false positive.
+#
+# An earlier version also counted a phrase appearing in the first 15% of any
+# answer. That clause was removed after measurement: across the same corpus it
+# uniquely caught one true positive (a 259-word refusal) and caused one false
+# positive (a 721-word complete answer whose preamble said "I don't know which
+# tier"). Widening the length threshold captures the former without the latter.
+REFUSAL_MAX_WORDS = 400
 
 
 def refused(answer: str) -> bool:
     """True only when a refusal phrase signals an actual refusal.
 
-    Counts as a refusal when the phrase appears in the opening of the answer,
-    or when the answer is short overall. A phrase appearing late in a long
-    answer is treated as a scope caveat within a complete answer.
+    A refusal phrase counts only in a short answer. In a long one the phrase is
+    a scope caveat or a clarifying aside within a complete answer, not a
+    refusal to answer. See REFUSAL_MAX_WORDS for the measurement behind the
+    threshold.
     """
     lowered = answer.lower()
-    positions = [lowered.find(p) for p in REFUSAL_PHRASES if p in lowered]
-    if not positions:
+    if not any(phrase in lowered for phrase in REFUSAL_PHRASES):
         return False
-    if len(answer.split()) < REFUSAL_MAX_WORDS:
-        return True
-    return (min(positions) / len(answer)) <= REFUSAL_HEAD_FRACTION
+    return len(answer.split()) < REFUSAL_MAX_WORDS
 
 
 def review_flagged(answer: str) -> bool:
