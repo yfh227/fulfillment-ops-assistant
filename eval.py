@@ -106,10 +106,9 @@ CASES = [
     },
 ]
 
-# Set EVAL_PROMPT_CACHE=1 to run the same cases with Bedrock prompt caching on
-# the document context block. Off by default so the uncached baseline stays
-# reproducible byte-for-byte.
-USE_CACHE = os.environ.get("EVAL_PROMPT_CACHE") == "1"
+# Prompt caching is ON by default, matching core.ask. Set EVAL_PROMPT_CACHE=0
+# to run uncached and reproduce the figures in baseline_direct_context.md.
+USE_CACHE = os.environ.get("EVAL_PROMPT_CACHE", "1") != "0"
 
 
 def _credentials() -> tuple[str | None, str | None]:

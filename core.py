@@ -190,16 +190,19 @@ def build_context(docs: list[tuple[str, str]]) -> str:
     return "\n\n".join(blocks)
 
 
-def ask(question: str, context: str, client=None, use_cache: bool = False) -> dict:
+def ask(question: str, context: str, client=None, use_cache: bool = True) -> dict:
     """Ask a grounded question; return the answer plus call metrics.
 
     Returns a dict with keys: answer, latency_ms, input_tokens, output_tokens,
     cache_read_tokens, cache_write_tokens, total_input_tokens.
 
-    With use_cache=True the document context is placed in its own content block
-    followed by a cachePoint, so the stable prefix (system prompt + corpus) can
-    be served from Bedrock's prompt cache while the question varies freely.
-    Sonnet 4.6 supports a 5-minute TTL only, refreshed on each hit.
+    Caching is ON by default: the document context goes in its own content
+    block followed by a cachePoint, so the stable prefix (system prompt +
+    corpus) is served from Bedrock's prompt cache while the question varies
+    freely. Sonnet 4.6 supports a 5-minute TTL only, refreshed on each hit.
+    Measured at 82% cheaper than uncached with no quality change — see
+    baseline_prompt_caching.md. Pass use_cache=False to reproduce the uncached
+    baseline.
 
     Note: when caching is active Bedrock reports `inputTokens` as the
     NON-cached portion only, so total input is inputTokens + cacheRead +

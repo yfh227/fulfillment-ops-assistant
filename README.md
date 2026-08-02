@@ -178,6 +178,14 @@ answer quality.
 
 ### Current position
 
-Prompt caching is measured and available but **not yet enabled by default in the
-app**; `use_cache` defaults to `False` so the uncached baseline stays reproducible.
+**Prompt caching is enabled by default.** `core.ask(..., use_cache=True)` is the
+default path, so the app and the harness both cache unless told otherwise. The
+uncached baseline no longer depends on the live setting — both baselines are
+committed to this repo, and `EVAL_PROMPT_CACHE=0` reproduces the uncached figures
+on demand:
+
+```bash
+EVAL_PROMPT_CACHE=0 ./venv/Scripts/python.exe eval.py
+```
+
 No retrieval layer has been built.
