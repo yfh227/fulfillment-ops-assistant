@@ -161,7 +161,7 @@ def main() -> int:
 
     header = (
         f"{'CASE':<31} {'CITE':<6} {'REFUSE':<7} {'FLAG':<6} "
-        f"{'CONTAIN':<8} {'LATENCY':>8}  RESULT"
+        f"{'CONTAIN':<8} {'LATENCY':>9} {'IN':>8} {'OUT':>6}  RESULT"
     )
     print(header)
     print("-" * len(header))
@@ -180,7 +180,9 @@ def main() -> int:
             f"{mark(checks['refuse']):<7} "
             f"{mark(checks['flag']):<6} "
             f"{mark(checks['contain']):<8} "
-            f"{result['latency_ms']:>6} ms  "
+            f"{result['latency_ms']:>6} ms "
+            f"{result['input_tokens'] or 0:>8,} "
+            f"{result['output_tokens'] or 0:>6,}  "
             f"{'PASS' if passed else 'FAIL'}"
         )
 
