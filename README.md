@@ -61,12 +61,12 @@ Scoring is **mechanical substring matching, not LLM grading**, so a given answer
 always produces the same verdict. Two details are load-bearing:
 
 - Refusal detection is *length-aware*. A phrase like "the documents do not
-  cover X" appearing deep in a long, complete answer is a scope caveat, not a
-  refusal. A phrase only counts when it appears near the start of the answer or
-  the answer is short overall.
-- The refusal phrase list covers two grammatical shapes, because the model
-  alternates between them: negation on the documents ("the documents do not
-  mention X") and negation on the subject ("there is no mention of X").
+  cover X" appearing in a long, complete answer is a scope caveat, not a
+  refusal. A phrase only counts when the answer is under 400 words.
+- The refusal phrase list covers three grammatical shapes, because the model
+  moves between them: negation on the documents ("the documents do not mention
+  X"), negation on the subject ("there is no mention of X"), and negation on
+  the model's own search ("I cannot find any policy that...").
 
 Both rules were derived from sampled model output, not guessed. The thresholds
 in `core.py` carry comments explaining the measurements behind them.
@@ -78,6 +78,69 @@ in `core.py` carry comments explaining the measurements behind them.
 Prints a per-case table with latency, ends with `N/8 PASSED`, and exits `1` if
 any case fails, so it can gate a build. Model output varies between runs — treat
 a single result as a sample, not a verdict.
+
+### Known limitations of refusal detection
+
+The weakest part of the harness is the refusal check, and it is worth stating
+plainly what it can get wrong.
+
+**It is substring matching over prose.** The model writes an answer in natural
+language and a hand-maintained phrase list decides whether that answer counts as
+a refusal. That has failed in both directions on real output:
+
+- **False negative.** Correcting a false premise, the model wrote *"I cannot find
+  any such policy in the documents provided"* and never used a listed phrase.
+  A textbook refusal scored as a non-refusal. Fixed by adding `cannot find any`,
+  which appeared in 9 of 10 sampled answers for that case.
+- **False positive.** A complete 721-word draft opened with *"I don't know which
+  tier this client is or how severe the damage is"* — a clarifying aside, not a
+  refusal — and the rule counted it. Fixed by removing the head-position clause.
+
+Both were found by sampling, not by reasoning about the rule.
+
+**The current rule is length-only: a refusal phrase counts if the answer is under
+400 words.** That threshold comes from a measured separation gap, not intuition:
+
+| | Word range |
+|---|---|
+| Genuine refusals | 26–259 |
+| *gap: 225 words* | |
+| Complete answers containing a refusal phrase | 484–721 |
+
+400 sits 141 words above the longest measured refusal and 84 below the shortest
+false positive.
+
+**Known blind spot: a refusal longer than 400 words would be missed.** The
+longest measured is 259, so there is headroom, but a case that produces a long
+partial refusal — extensive explanation of what the documents *do* cover before
+admitting a gap — would score as a non-refusal. No current case does this.
+
+**The more robust fix is a structured self-report from the model rather than
+pattern-matching its prose** — asking it to emit a machine-readable field
+declaring whether it refused, and grading that. This removes the phrase list
+entirely and with it both failure modes above. The cost is an extra call per
+case if the self-report is graded separately, or a change to the user-facing
+answer format if the field is embedded in the answer itself. **Evaluated, not
+built** — the current rule is clean across the whole evidence base, and the
+substring approach keeps scoring deterministic, which LLM-based grading does
+not.
+
+### Evidence base
+
+[eval_corpus.json](eval_corpus.json) holds 40 stored answers across cases 2, 3,
+4, 6 and 8 — both the refusals that must be caught and the complete answers that
+must not be. Every rule change and phrase addition above was tested against it
+before shipping.
+
+Each entry is tagged with `regime`: `v2-7docs-original` (18 answers, captured
+against the 7-document corpus with the pre-hardening prompt) and
+`v3-23docs-hardened` (22 answers, current corpus and prompt). The tagging matters
+because a candidate phrase validated only against old-regime answers proves
+little about current behaviour — the corpus and the system prompt have both
+changed since.
+
+Keeping the file in the repo is what makes testing a new candidate free: it
+costs no Bedrock calls.
 
 ## Usage logging
 
