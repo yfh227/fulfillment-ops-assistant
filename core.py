@@ -31,6 +31,16 @@ is the answer even if it seems unusual.
 from, e.g. "(02_billing_rate_card.md)". If you combine several documents, cite \
 each one at the point you use it.
 
+   The citation MUST be the .md filename shown in the document separator, and \
+never the document's internal identifier. The documents carry internal IDs in \
+their headers (for example "Document ID: POL-FIN-003") and refer to each other \
+by those IDs throughout. Those IDs are content, not citations. Citing \
+"POL-FIN-003" or "SOP-REC-004" instead of "06_billing_dispute_policy.md" or \
+"01_receiving_discrepancy_sop.md" is wrong, even though the surrounding \
+documents cite each other that way. Follow this instruction over the \
+convention you observe in the documents. You may mention an internal ID in \
+your prose, but every citation must still carry the .md filename.
+
 3. ADMITTING GAPS. If the documents do not cover the question, or cover it \
 only partially, say "I don't know" plainly and state what is missing. A \
 partial answer must clearly separate what the documents support from what they \
@@ -180,27 +190,53 @@ def build_context(docs: list[tuple[str, str]]) -> str:
     return "\n\n".join(blocks)
 
 
-def ask(question: str, context: str, client=None) -> dict:
+def ask(question: str, context: str, client=None, use_cache: bool = False) -> dict:
     """Ask a grounded question; return the answer plus call metrics.
 
-    Returns a dict with keys: answer, latency_ms, input_tokens, output_tokens.
+    Returns a dict with keys: answer, latency_ms, input_tokens, output_tokens,
+    cache_read_tokens, cache_write_tokens, total_input_tokens.
+
+    With use_cache=True the document context is placed in its own content block
+    followed by a cachePoint, so the stable prefix (system prompt + corpus) can
+    be served from Bedrock's prompt cache while the question varies freely.
+    Sonnet 4.6 supports a 5-minute TTL only, refreshed on each hit.
+
+    Note: when caching is active Bedrock reports `inputTokens` as the
+    NON-cached portion only, so total input is inputTokens + cacheRead +
+    cacheWrite. `total_input_tokens` does that sum; `input_tokens` is left as
+    Bedrock reported it.
     """
     client = client or get_bedrock_client()
-    prompt = (
-        f"Here are the reference documents:\n\n{context}\n\n"
-        f"---\n\nQuestion: {question}"
-    )
+
+    if use_cache:
+        content = [
+            {"text": f"Here are the reference documents:\n\n{context}"},
+            {"cachePoint": {"type": "default"}},
+            {"text": f"---\n\nQuestion: {question}"},
+        ]
+    else:
+        content = [{
+            "text": f"Here are the reference documents:\n\n{context}\n\n"
+                    f"---\n\nQuestion: {question}"
+        }]
+
     start = time.perf_counter()
     response = client.converse(
         modelId=MODEL_ID,
         system=[{"text": SYSTEM_PROMPT}],
-        messages=[{"role": "user", "content": [{"text": prompt}]}],
+        messages=[{"role": "user", "content": content}],
     )
     latency_ms = round((time.perf_counter() - start) * 1000)
     usage = response.get("usage", {})
+    read = usage.get("cacheReadInputTokens") or 0
+    write = usage.get("cacheWriteInputTokens") or 0
+    plain = usage.get("inputTokens") or 0
     return {
         "answer": response["output"]["message"]["content"][0]["text"],
         "latency_ms": latency_ms,
         "input_tokens": usage.get("inputTokens"),
         "output_tokens": usage.get("outputTokens"),
+        "cache_read_tokens": read,
+        "cache_write_tokens": write,
+        "total_input_tokens": plain + read + write,
     }

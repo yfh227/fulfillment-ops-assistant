@@ -8,6 +8,7 @@ Run:  python eval.py       (exit 0 if all cases pass, 1 otherwise)
 """
 
 import hashlib
+import os
 import sys
 import tomllib
 from pathlib import Path
@@ -105,6 +106,12 @@ CASES = [
     },
 ]
 
+# Set EVAL_PROMPT_CACHE=1 to run the same cases with Bedrock prompt caching on
+# the document context block. Off by default so the uncached baseline stays
+# reproducible byte-for-byte.
+USE_CACHE = os.environ.get("EVAL_PROMPT_CACHE") == "1"
+
+
 def _credentials() -> tuple[str | None, str | None]:
     """Read AWS creds from Streamlit secrets; fall back to boto3's own chain."""
     path = Path(__file__).parent / ".streamlit" / "secrets.toml"
@@ -157,18 +164,21 @@ def main() -> int:
     print(f"documents     : {len(documents)}")
     print(f"context chars : {len(context):,}")
     print(f"prompt sha256 : {prompt_sha} ({len(SYSTEM_PROMPT):,} chars)")
+    print(f"prompt cache  : {'ON' if USE_CACHE else 'off'}")
     print()
 
     header = (
         f"{'CASE':<31} {'CITE':<6} {'REFUSE':<7} {'FLAG':<6} "
-        f"{'CONTAIN':<8} {'LATENCY':>9} {'IN':>8} {'OUT':>6}  RESULT"
+        f"{'CONTAIN':<8} {'LATENCY':>9} {'IN':>8} {'OUT':>6}"
+        + (f" {'C-READ':>8} {'C-WRITE':>8}" if USE_CACHE else "")
+        + "  RESULT"
     )
     print(header)
     print("-" * len(header))
 
     results = []
     for case in CASES:
-        result = ask(case["question"], context, bedrock_client)
+        result = ask(case["question"], context, bedrock_client, use_cache=USE_CACHE)
         answer = result["answer"]
         checks = grade(case, answer)
         passed = all(v for v in checks.values() if v is not None)
@@ -182,8 +192,10 @@ def main() -> int:
             f"{mark(checks['contain']):<8} "
             f"{result['latency_ms']:>6} ms "
             f"{result['input_tokens'] or 0:>8,} "
-            f"{result['output_tokens'] or 0:>6,}  "
-            f"{'PASS' if passed else 'FAIL'}"
+            f"{result['output_tokens'] or 0:>6,}"
+            + (f" {result['cache_read_tokens']:>8,} "
+               f"{result['cache_write_tokens']:>8,}" if USE_CACHE else "")
+            + f"  {'PASS' if passed else 'FAIL'}"
         )
 
     failures = [r for r in results if not r[2]]
