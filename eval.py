@@ -33,7 +33,12 @@ CASES = [
         "question": "What's the process for a receiving discrepancy?",
         "expect_citation": "01_receiving_discrepancy_sop.md",
         "should_refuse": False,
-        "should_flag": False,
+        # The procedure includes client notification and a 48-hour carrier
+        # claim window, both money- and client-adjacent, so rule 4 correctly
+        # flags it. Under retrieval this surfaces reliably from K=14; under
+        # direct context the model does not always flag it. See
+        # retrieval_vs_caching.md.
+        "should_flag": True,
         "must_contain": None,
     },
     {

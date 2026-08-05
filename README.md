@@ -192,6 +192,8 @@ was measured rather than assumed, and the measurements are committed:
 
 - [baseline_direct_context.md](baseline_direct_context.md) — the uncached "before"
 - [baseline_prompt_caching.md](baseline_prompt_caching.md) — caching measured against it
+- [retrieval_vs_caching.md](retrieval_vs_caching.md) — retrieval built and tuned
+  against both
 
 ### What it costs
 
@@ -238,6 +240,19 @@ grounding rules in the system prompt do not protect against this — the model h
 no way to know what it was not shown. Adopting retrieval would require new eval
 cases measuring retrieval quality itself, separate from the eight that measure
 answer quality.
+
+### Retrieval, measured
+
+Retrieval was subsequently built and tuned against the eval. At K=14 with a
+0.30 relevance floor it costs **$1.87 per 100 questions against $4.86** for
+prompt-cached direct context, and runs 39% faster.
+
+It is **not** the default. `use_retrieval` defaults to `False`, because the
+comparison is closer than the cost figures suggest: direct context cannot fail
+to see a relevant document, and retrieval can. Full curve, the case-1
+check-migration finding, and the result that the relevance floor — not K —
+bounds context size are in
+[retrieval_vs_caching.md](retrieval_vs_caching.md).
 
 ### Current position
 

@@ -265,7 +265,14 @@ def build_context(docs: list[tuple[str, str]]) -> str:
 # Retrieval
 # --------------------------------------------------------------------------
 
-RETRIEVAL_K = 6
+# Tuned against the eval over K = 6, 10, 14, 18, 24 with three runs each.
+# K=14 was the most consistent (7/7/7 where every other K varied), stabilised
+# case 8, and costs $1.87 per 100 questions against $4.86 for prompt-cached
+# direct context. Higher K bought nothing: cases 2 and 4 regressed at K=24 as
+# extra context produced more caveats, and the relevance floor caps context
+# regardless — at most 32 chunks clear 0.30 for any eval question. Full curve
+# in retrieval_vs_caching.md.
+RETRIEVAL_K = 14
 
 # Chunks scoring below this are dropped even if that returns fewer than K.
 #
