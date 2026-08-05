@@ -290,7 +290,8 @@ NO_MATCH_CONTEXT = (
 
 
 def retrieve_context(question: str, client=None, k: int = RETRIEVAL_K,
-                     floor: float = RELEVANCE_FLOOR) -> tuple[str, list]:
+                     floor: float = RELEVANCE_FLOOR,
+                     query_vec=None) -> tuple[str, list]:
     """Assemble context from the top-k chunks that clear the relevance floor.
 
     Returns (context, hits). Chunks are grouped under their source document
@@ -304,7 +305,12 @@ def retrieve_context(question: str, client=None, k: int = RETRIEVAL_K,
     from vector_store import embed_query, load_index, search_vec
 
     embeddings, payload, _ = load_index()
-    hits = search_vec(embed_query(question, client), k, embeddings, payload)
+    # query_vec lets a caller reuse an embedding across repeated retrievals of
+    # the same question — sweeping K, for instance, where the vector is
+    # identical and only the cut-off changes.
+    if query_vec is None:
+        query_vec = embed_query(question, client)
+    hits = search_vec(query_vec, k, embeddings, payload)
     kept = [h for h in hits if h.score >= floor]
 
     if not kept:

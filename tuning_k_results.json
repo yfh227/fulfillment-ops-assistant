@@ -1,0 +1,1475 @@
+[
+  {
+    "k": 6,
+    "run": 1,
+    "cases": [
+      {
+        "name": "Documented internal process",
+        "passed": false,
+        "failed_checks": [
+          "flag"
+        ],
+        "in": 1380,
+        "out": 566,
+        "latency": 7832,
+        "chunks": 6,
+        "docs": 1,
+        "ctx_chars": 2292
+      },
+      {
+        "name": "Documented financial decision",
+        "passed": true,
+        "failed_checks": [],
+        "in": 2145,
+        "out": 530,
+        "latency": 9976,
+        "chunks": 6,
+        "docs": 2,
+        "ctx_chars": 5464
+      },
+      {
+        "name": "Topic absent from documents",
+        "passed": true,
+        "failed_checks": [],
+        "in": 734,
+        "out": 43,
+        "latency": 2793,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Mixed coverage",
+        "passed": true,
+        "failed_checks": [],
+        "in": 1957,
+        "out": 179,
+        "latency": 3766,
+        "chunks": 6,
+        "docs": 3,
+        "ctx_chars": 4760
+      },
+      {
+        "name": "Cross-document synthesis",
+        "passed": true,
+        "failed_checks": [],
+        "in": 1554,
+        "out": 587,
+        "latency": 9896,
+        "chunks": 6,
+        "docs": 2,
+        "ctx_chars": 3082
+      },
+      {
+        "name": "False premise correction",
+        "passed": true,
+        "failed_checks": [],
+        "in": 742,
+        "out": 128,
+        "latency": 3410,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Exact figure recall",
+        "passed": true,
+        "failed_checks": [],
+        "in": 2870,
+        "out": 309,
+        "latency": 4926,
+        "chunks": 6,
+        "docs": 4,
+        "ctx_chars": 7039
+      },
+      {
+        "name": "Client-facing, non-financial",
+        "passed": false,
+        "failed_checks": [
+          "refuse"
+        ],
+        "in": 2092,
+        "out": 485,
+        "latency": 10629,
+        "chunks": 6,
+        "docs": 4,
+        "ctx_chars": 4714
+      }
+    ],
+    "passed": 6
+  },
+  {
+    "k": 6,
+    "run": 2,
+    "cases": [
+      {
+        "name": "Documented internal process",
+        "passed": false,
+        "failed_checks": [
+          "refuse"
+        ],
+        "in": 1380,
+        "out": 541,
+        "latency": 9333,
+        "chunks": 6,
+        "docs": 1,
+        "ctx_chars": 2292
+      },
+      {
+        "name": "Documented financial decision",
+        "passed": true,
+        "failed_checks": [],
+        "in": 2145,
+        "out": 447,
+        "latency": 8702,
+        "chunks": 6,
+        "docs": 2,
+        "ctx_chars": 5464
+      },
+      {
+        "name": "Topic absent from documents",
+        "passed": true,
+        "failed_checks": [],
+        "in": 734,
+        "out": 43,
+        "latency": 1703,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Mixed coverage",
+        "passed": true,
+        "failed_checks": [],
+        "in": 1957,
+        "out": 160,
+        "latency": 3480,
+        "chunks": 6,
+        "docs": 3,
+        "ctx_chars": 4760
+      },
+      {
+        "name": "Cross-document synthesis",
+        "passed": true,
+        "failed_checks": [],
+        "in": 1554,
+        "out": 587,
+        "latency": 10331,
+        "chunks": 6,
+        "docs": 2,
+        "ctx_chars": 3082
+      },
+      {
+        "name": "False premise correction",
+        "passed": true,
+        "failed_checks": [],
+        "in": 742,
+        "out": 136,
+        "latency": 3974,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Exact figure recall",
+        "passed": true,
+        "failed_checks": [],
+        "in": 2870,
+        "out": 296,
+        "latency": 5345,
+        "chunks": 6,
+        "docs": 4,
+        "ctx_chars": 7039
+      },
+      {
+        "name": "Client-facing, non-financial",
+        "passed": false,
+        "failed_checks": [
+          "refuse"
+        ],
+        "in": 2092,
+        "out": 457,
+        "latency": 9255,
+        "chunks": 6,
+        "docs": 4,
+        "ctx_chars": 4714
+      }
+    ],
+    "passed": 6
+  },
+  {
+    "k": 6,
+    "run": 3,
+    "cases": [
+      {
+        "name": "Documented internal process",
+        "passed": true,
+        "failed_checks": [],
+        "in": 1380,
+        "out": 467,
+        "latency": 7619,
+        "chunks": 6,
+        "docs": 1,
+        "ctx_chars": 2292
+      },
+      {
+        "name": "Documented financial decision",
+        "passed": true,
+        "failed_checks": [],
+        "in": 2145,
+        "out": 539,
+        "latency": 9770,
+        "chunks": 6,
+        "docs": 2,
+        "ctx_chars": 5464
+      },
+      {
+        "name": "Topic absent from documents",
+        "passed": true,
+        "failed_checks": [],
+        "in": 734,
+        "out": 43,
+        "latency": 1848,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Mixed coverage",
+        "passed": true,
+        "failed_checks": [],
+        "in": 1957,
+        "out": 152,
+        "latency": 2869,
+        "chunks": 6,
+        "docs": 3,
+        "ctx_chars": 4760
+      },
+      {
+        "name": "Cross-document synthesis",
+        "passed": true,
+        "failed_checks": [],
+        "in": 1554,
+        "out": 565,
+        "latency": 9797,
+        "chunks": 6,
+        "docs": 2,
+        "ctx_chars": 3082
+      },
+      {
+        "name": "False premise correction",
+        "passed": true,
+        "failed_checks": [],
+        "in": 742,
+        "out": 143,
+        "latency": 4520,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Exact figure recall",
+        "passed": true,
+        "failed_checks": [],
+        "in": 2870,
+        "out": 328,
+        "latency": 5786,
+        "chunks": 6,
+        "docs": 4,
+        "ctx_chars": 7039
+      },
+      {
+        "name": "Client-facing, non-financial",
+        "passed": true,
+        "failed_checks": [],
+        "in": 2092,
+        "out": 559,
+        "latency": 11797,
+        "chunks": 6,
+        "docs": 4,
+        "ctx_chars": 4714
+      }
+    ],
+    "passed": 8
+  },
+  {
+    "k": 10,
+    "run": 1,
+    "cases": [
+      {
+        "name": "Documented internal process",
+        "passed": false,
+        "failed_checks": [
+          "refuse",
+          "flag"
+        ],
+        "in": 2264,
+        "out": 1110,
+        "latency": 12161,
+        "chunks": 10,
+        "docs": 2,
+        "ctx_chars": 5479
+      },
+      {
+        "name": "Documented financial decision",
+        "passed": true,
+        "failed_checks": [],
+        "in": 3235,
+        "out": 539,
+        "latency": 11278,
+        "chunks": 10,
+        "docs": 5,
+        "ctx_chars": 9075
+      },
+      {
+        "name": "Topic absent from documents",
+        "passed": true,
+        "failed_checks": [],
+        "in": 734,
+        "out": 40,
+        "latency": 1804,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Mixed coverage",
+        "passed": true,
+        "failed_checks": [],
+        "in": 3198,
+        "out": 149,
+        "latency": 4032,
+        "chunks": 10,
+        "docs": 4,
+        "ctx_chars": 9432
+      },
+      {
+        "name": "Cross-document synthesis",
+        "passed": true,
+        "failed_checks": [],
+        "in": 2100,
+        "out": 723,
+        "latency": 13399,
+        "chunks": 10,
+        "docs": 2,
+        "ctx_chars": 5329
+      },
+      {
+        "name": "False premise correction",
+        "passed": true,
+        "failed_checks": [],
+        "in": 742,
+        "out": 116,
+        "latency": 3623,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Exact figure recall",
+        "passed": true,
+        "failed_checks": [],
+        "in": 4595,
+        "out": 317,
+        "latency": 5527,
+        "chunks": 10,
+        "docs": 5,
+        "ctx_chars": 12400
+      },
+      {
+        "name": "Client-facing, non-financial",
+        "passed": false,
+        "failed_checks": [
+          "refuse"
+        ],
+        "in": 3207,
+        "out": 290,
+        "latency": 7696,
+        "chunks": 10,
+        "docs": 4,
+        "ctx_chars": 9064
+      }
+    ],
+    "passed": 6
+  },
+  {
+    "k": 10,
+    "run": 2,
+    "cases": [
+      {
+        "name": "Documented internal process",
+        "passed": false,
+        "failed_checks": [
+          "refuse",
+          "flag"
+        ],
+        "in": 2264,
+        "out": 1094,
+        "latency": 12690,
+        "chunks": 10,
+        "docs": 2,
+        "ctx_chars": 5479
+      },
+      {
+        "name": "Documented financial decision",
+        "passed": true,
+        "failed_checks": [],
+        "in": 3235,
+        "out": 745,
+        "latency": 13367,
+        "chunks": 10,
+        "docs": 5,
+        "ctx_chars": 9075
+      },
+      {
+        "name": "Topic absent from documents",
+        "passed": true,
+        "failed_checks": [],
+        "in": 734,
+        "out": 57,
+        "latency": 2008,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Mixed coverage",
+        "passed": true,
+        "failed_checks": [],
+        "in": 3198,
+        "out": 165,
+        "latency": 4298,
+        "chunks": 10,
+        "docs": 4,
+        "ctx_chars": 9432
+      },
+      {
+        "name": "Cross-document synthesis",
+        "passed": false,
+        "failed_checks": [
+          "refuse"
+        ],
+        "in": 2100,
+        "out": 647,
+        "latency": 12386,
+        "chunks": 10,
+        "docs": 2,
+        "ctx_chars": 5329
+      },
+      {
+        "name": "False premise correction",
+        "passed": true,
+        "failed_checks": [],
+        "in": 742,
+        "out": 160,
+        "latency": 4083,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Exact figure recall",
+        "passed": true,
+        "failed_checks": [],
+        "in": 4595,
+        "out": 338,
+        "latency": 5525,
+        "chunks": 10,
+        "docs": 5,
+        "ctx_chars": 12400
+      },
+      {
+        "name": "Client-facing, non-financial",
+        "passed": false,
+        "failed_checks": [
+          "refuse"
+        ],
+        "in": 3207,
+        "out": 387,
+        "latency": 8947,
+        "chunks": 10,
+        "docs": 4,
+        "ctx_chars": 9064
+      }
+    ],
+    "passed": 5
+  },
+  {
+    "k": 10,
+    "run": 3,
+    "cases": [
+      {
+        "name": "Documented internal process",
+        "passed": false,
+        "failed_checks": [
+          "flag"
+        ],
+        "in": 2264,
+        "out": 1160,
+        "latency": 13496,
+        "chunks": 10,
+        "docs": 2,
+        "ctx_chars": 5479
+      },
+      {
+        "name": "Documented financial decision",
+        "passed": true,
+        "failed_checks": [],
+        "in": 3235,
+        "out": 566,
+        "latency": 10959,
+        "chunks": 10,
+        "docs": 5,
+        "ctx_chars": 9075
+      },
+      {
+        "name": "Topic absent from documents",
+        "passed": true,
+        "failed_checks": [],
+        "in": 734,
+        "out": 51,
+        "latency": 2475,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Mixed coverage",
+        "passed": true,
+        "failed_checks": [],
+        "in": 3198,
+        "out": 171,
+        "latency": 4521,
+        "chunks": 10,
+        "docs": 4,
+        "ctx_chars": 9432
+      },
+      {
+        "name": "Cross-document synthesis",
+        "passed": false,
+        "failed_checks": [
+          "refuse"
+        ],
+        "in": 2100,
+        "out": 603,
+        "latency": 10489,
+        "chunks": 10,
+        "docs": 2,
+        "ctx_chars": 5329
+      },
+      {
+        "name": "False premise correction",
+        "passed": true,
+        "failed_checks": [],
+        "in": 742,
+        "out": 143,
+        "latency": 3961,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Exact figure recall",
+        "passed": true,
+        "failed_checks": [],
+        "in": 4595,
+        "out": 295,
+        "latency": 5330,
+        "chunks": 10,
+        "docs": 5,
+        "ctx_chars": 12400
+      },
+      {
+        "name": "Client-facing, non-financial",
+        "passed": false,
+        "failed_checks": [
+          "refuse"
+        ],
+        "in": 3207,
+        "out": 324,
+        "latency": 8065,
+        "chunks": 10,
+        "docs": 4,
+        "ctx_chars": 9064
+      }
+    ],
+    "passed": 5
+  },
+  {
+    "k": 14,
+    "run": 1,
+    "cases": [
+      {
+        "name": "Documented internal process",
+        "passed": false,
+        "failed_checks": [
+          "flag"
+        ],
+        "in": 2760,
+        "out": 1350,
+        "latency": 14339,
+        "chunks": 14,
+        "docs": 2,
+        "ctx_chars": 7330
+      },
+      {
+        "name": "Documented financial decision",
+        "passed": true,
+        "failed_checks": [],
+        "in": 4151,
+        "out": 725,
+        "latency": 16481,
+        "chunks": 14,
+        "docs": 7,
+        "ctx_chars": 12395
+      },
+      {
+        "name": "Topic absent from documents",
+        "passed": true,
+        "failed_checks": [],
+        "in": 734,
+        "out": 47,
+        "latency": 1906,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Mixed coverage",
+        "passed": true,
+        "failed_checks": [],
+        "in": 3841,
+        "out": 178,
+        "latency": 8094,
+        "chunks": 14,
+        "docs": 5,
+        "ctx_chars": 11821
+      },
+      {
+        "name": "Cross-document synthesis",
+        "passed": true,
+        "failed_checks": [],
+        "in": 2742,
+        "out": 658,
+        "latency": 11602,
+        "chunks": 14,
+        "docs": 4,
+        "ctx_chars": 7742
+      },
+      {
+        "name": "False premise correction",
+        "passed": true,
+        "failed_checks": [],
+        "in": 742,
+        "out": 125,
+        "latency": 3527,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Exact figure recall",
+        "passed": true,
+        "failed_checks": [],
+        "in": 6468,
+        "out": 342,
+        "latency": 8369,
+        "chunks": 14,
+        "docs": 7,
+        "ctx_chars": 18657
+      },
+      {
+        "name": "Client-facing, non-financial",
+        "passed": true,
+        "failed_checks": [],
+        "in": 4114,
+        "out": 636,
+        "latency": 14873,
+        "chunks": 14,
+        "docs": 6,
+        "ctx_chars": 12421
+      }
+    ],
+    "passed": 7
+  },
+  {
+    "k": 14,
+    "run": 2,
+    "cases": [
+      {
+        "name": "Documented internal process",
+        "passed": false,
+        "failed_checks": [
+          "flag"
+        ],
+        "in": 2760,
+        "out": 1241,
+        "latency": 13204,
+        "chunks": 14,
+        "docs": 2,
+        "ctx_chars": 7330
+      },
+      {
+        "name": "Documented financial decision",
+        "passed": true,
+        "failed_checks": [],
+        "in": 4151,
+        "out": 783,
+        "latency": 17898,
+        "chunks": 14,
+        "docs": 7,
+        "ctx_chars": 12395
+      },
+      {
+        "name": "Topic absent from documents",
+        "passed": true,
+        "failed_checks": [],
+        "in": 734,
+        "out": 44,
+        "latency": 1985,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Mixed coverage",
+        "passed": true,
+        "failed_checks": [],
+        "in": 3841,
+        "out": 154,
+        "latency": 4939,
+        "chunks": 14,
+        "docs": 5,
+        "ctx_chars": 11821
+      },
+      {
+        "name": "Cross-document synthesis",
+        "passed": true,
+        "failed_checks": [],
+        "in": 2742,
+        "out": 664,
+        "latency": 10973,
+        "chunks": 14,
+        "docs": 4,
+        "ctx_chars": 7742
+      },
+      {
+        "name": "False premise correction",
+        "passed": true,
+        "failed_checks": [],
+        "in": 742,
+        "out": 145,
+        "latency": 4123,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Exact figure recall",
+        "passed": true,
+        "failed_checks": [],
+        "in": 6468,
+        "out": 264,
+        "latency": 6136,
+        "chunks": 14,
+        "docs": 7,
+        "ctx_chars": 18657
+      },
+      {
+        "name": "Client-facing, non-financial",
+        "passed": true,
+        "failed_checks": [],
+        "in": 4114,
+        "out": 549,
+        "latency": 12185,
+        "chunks": 14,
+        "docs": 6,
+        "ctx_chars": 12421
+      }
+    ],
+    "passed": 7
+  },
+  {
+    "k": 14,
+    "run": 3,
+    "cases": [
+      {
+        "name": "Documented internal process",
+        "passed": false,
+        "failed_checks": [
+          "flag"
+        ],
+        "in": 2760,
+        "out": 1262,
+        "latency": 13877,
+        "chunks": 14,
+        "docs": 2,
+        "ctx_chars": 7330
+      },
+      {
+        "name": "Documented financial decision",
+        "passed": true,
+        "failed_checks": [],
+        "in": 4151,
+        "out": 780,
+        "latency": 17772,
+        "chunks": 14,
+        "docs": 7,
+        "ctx_chars": 12395
+      },
+      {
+        "name": "Topic absent from documents",
+        "passed": true,
+        "failed_checks": [],
+        "in": 734,
+        "out": 41,
+        "latency": 1828,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Mixed coverage",
+        "passed": true,
+        "failed_checks": [],
+        "in": 3841,
+        "out": 142,
+        "latency": 4710,
+        "chunks": 14,
+        "docs": 5,
+        "ctx_chars": 11821
+      },
+      {
+        "name": "Cross-document synthesis",
+        "passed": true,
+        "failed_checks": [],
+        "in": 2742,
+        "out": 712,
+        "latency": 11974,
+        "chunks": 14,
+        "docs": 4,
+        "ctx_chars": 7742
+      },
+      {
+        "name": "False premise correction",
+        "passed": true,
+        "failed_checks": [],
+        "in": 742,
+        "out": 108,
+        "latency": 3340,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Exact figure recall",
+        "passed": true,
+        "failed_checks": [],
+        "in": 6468,
+        "out": 337,
+        "latency": 7280,
+        "chunks": 14,
+        "docs": 7,
+        "ctx_chars": 18657
+      },
+      {
+        "name": "Client-facing, non-financial",
+        "passed": true,
+        "failed_checks": [],
+        "in": 4114,
+        "out": 557,
+        "latency": 11666,
+        "chunks": 14,
+        "docs": 6,
+        "ctx_chars": 12421
+      }
+    ],
+    "passed": 7
+  },
+  {
+    "k": 18,
+    "run": 1,
+    "cases": [
+      {
+        "name": "Documented internal process",
+        "passed": false,
+        "failed_checks": [
+          "flag"
+        ],
+        "in": 3438,
+        "out": 1290,
+        "latency": 17994,
+        "chunks": 18,
+        "docs": 4,
+        "ctx_chars": 9860
+      },
+      {
+        "name": "Documented financial decision",
+        "passed": true,
+        "failed_checks": [],
+        "in": 5856,
+        "out": 685,
+        "latency": 16197,
+        "chunks": 18,
+        "docs": 9,
+        "ctx_chars": 18495
+      },
+      {
+        "name": "Topic absent from documents",
+        "passed": true,
+        "failed_checks": [],
+        "in": 734,
+        "out": 45,
+        "latency": 1842,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Mixed coverage",
+        "passed": true,
+        "failed_checks": [],
+        "in": 3841,
+        "out": 169,
+        "latency": 5092,
+        "chunks": 14,
+        "docs": 5,
+        "ctx_chars": 11821
+      },
+      {
+        "name": "Cross-document synthesis",
+        "passed": true,
+        "failed_checks": [],
+        "in": 3226,
+        "out": 798,
+        "latency": 18105,
+        "chunks": 18,
+        "docs": 4,
+        "ctx_chars": 9337
+      },
+      {
+        "name": "False premise correction",
+        "passed": true,
+        "failed_checks": [],
+        "in": 742,
+        "out": 119,
+        "latency": 3698,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Exact figure recall",
+        "passed": true,
+        "failed_checks": [],
+        "in": 6468,
+        "out": 306,
+        "latency": 7103,
+        "chunks": 14,
+        "docs": 7,
+        "ctx_chars": 18657
+      },
+      {
+        "name": "Client-facing, non-financial",
+        "passed": true,
+        "failed_checks": [],
+        "in": 4114,
+        "out": 636,
+        "latency": 15622,
+        "chunks": 14,
+        "docs": 6,
+        "ctx_chars": 12421
+      }
+    ],
+    "passed": 7
+  },
+  {
+    "k": 18,
+    "run": 2,
+    "cases": [
+      {
+        "name": "Documented internal process",
+        "passed": false,
+        "failed_checks": [
+          "flag"
+        ],
+        "in": 3438,
+        "out": 1253,
+        "latency": 17129,
+        "chunks": 18,
+        "docs": 4,
+        "ctx_chars": 9860
+      },
+      {
+        "name": "Documented financial decision",
+        "passed": true,
+        "failed_checks": [],
+        "in": 5856,
+        "out": 632,
+        "latency": 16110,
+        "chunks": 18,
+        "docs": 9,
+        "ctx_chars": 18495
+      },
+      {
+        "name": "Topic absent from documents",
+        "passed": true,
+        "failed_checks": [],
+        "in": 734,
+        "out": 42,
+        "latency": 2042,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Mixed coverage",
+        "passed": true,
+        "failed_checks": [],
+        "in": 3841,
+        "out": 154,
+        "latency": 4744,
+        "chunks": 14,
+        "docs": 5,
+        "ctx_chars": 11821
+      },
+      {
+        "name": "Cross-document synthesis",
+        "passed": true,
+        "failed_checks": [],
+        "in": 3226,
+        "out": 729,
+        "latency": 12944,
+        "chunks": 18,
+        "docs": 4,
+        "ctx_chars": 9337
+      },
+      {
+        "name": "False premise correction",
+        "passed": true,
+        "failed_checks": [],
+        "in": 742,
+        "out": 122,
+        "latency": 3962,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Exact figure recall",
+        "passed": true,
+        "failed_checks": [],
+        "in": 6468,
+        "out": 305,
+        "latency": 6671,
+        "chunks": 14,
+        "docs": 7,
+        "ctx_chars": 18657
+      },
+      {
+        "name": "Client-facing, non-financial",
+        "passed": true,
+        "failed_checks": [],
+        "in": 4114,
+        "out": 678,
+        "latency": 16188,
+        "chunks": 14,
+        "docs": 6,
+        "ctx_chars": 12421
+      }
+    ],
+    "passed": 7
+  },
+  {
+    "k": 18,
+    "run": 3,
+    "cases": [
+      {
+        "name": "Documented internal process",
+        "passed": false,
+        "failed_checks": [
+          "flag"
+        ],
+        "in": 3438,
+        "out": 1216,
+        "latency": 17860,
+        "chunks": 18,
+        "docs": 4,
+        "ctx_chars": 9860
+      },
+      {
+        "name": "Documented financial decision",
+        "passed": true,
+        "failed_checks": [],
+        "in": 5856,
+        "out": 552,
+        "latency": 12867,
+        "chunks": 18,
+        "docs": 9,
+        "ctx_chars": 18495
+      },
+      {
+        "name": "Topic absent from documents",
+        "passed": true,
+        "failed_checks": [],
+        "in": 734,
+        "out": 45,
+        "latency": 1645,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Mixed coverage",
+        "passed": true,
+        "failed_checks": [],
+        "in": 3841,
+        "out": 161,
+        "latency": 5331,
+        "chunks": 14,
+        "docs": 5,
+        "ctx_chars": 11821
+      },
+      {
+        "name": "Cross-document synthesis",
+        "passed": false,
+        "failed_checks": [
+          "refuse"
+        ],
+        "in": 3226,
+        "out": 811,
+        "latency": 15885,
+        "chunks": 18,
+        "docs": 4,
+        "ctx_chars": 9337
+      },
+      {
+        "name": "False premise correction",
+        "passed": true,
+        "failed_checks": [],
+        "in": 742,
+        "out": 126,
+        "latency": 3938,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Exact figure recall",
+        "passed": true,
+        "failed_checks": [],
+        "in": 6468,
+        "out": 293,
+        "latency": 6439,
+        "chunks": 14,
+        "docs": 7,
+        "ctx_chars": 18657
+      },
+      {
+        "name": "Client-facing, non-financial",
+        "passed": true,
+        "failed_checks": [],
+        "in": 4114,
+        "out": 519,
+        "latency": 12262,
+        "chunks": 14,
+        "docs": 6,
+        "ctx_chars": 12421
+      }
+    ],
+    "passed": 6
+  },
+  {
+    "k": 24,
+    "run": 1,
+    "cases": [
+      {
+        "name": "Documented internal process",
+        "passed": true,
+        "failed_checks": [],
+        "in": 4453,
+        "out": 1323,
+        "latency": 26050,
+        "chunks": 24,
+        "docs": 5,
+        "ctx_chars": 13631
+      },
+      {
+        "name": "Documented financial decision",
+        "passed": true,
+        "failed_checks": [],
+        "in": 7811,
+        "out": 878,
+        "latency": 20202,
+        "chunks": 24,
+        "docs": 11,
+        "ctx_chars": 25525
+      },
+      {
+        "name": "Topic absent from documents",
+        "passed": true,
+        "failed_checks": [],
+        "in": 734,
+        "out": 46,
+        "latency": 1690,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Mixed coverage",
+        "passed": true,
+        "failed_checks": [],
+        "in": 3841,
+        "out": 157,
+        "latency": 4722,
+        "chunks": 14,
+        "docs": 5,
+        "ctx_chars": 11821
+      },
+      {
+        "name": "Cross-document synthesis",
+        "passed": true,
+        "failed_checks": [],
+        "in": 4588,
+        "out": 628,
+        "latency": 13889,
+        "chunks": 24,
+        "docs": 5,
+        "ctx_chars": 14503
+      },
+      {
+        "name": "False premise correction",
+        "passed": true,
+        "failed_checks": [],
+        "in": 742,
+        "out": 117,
+        "latency": 3468,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Exact figure recall",
+        "passed": true,
+        "failed_checks": [],
+        "in": 6468,
+        "out": 253,
+        "latency": 6126,
+        "chunks": 14,
+        "docs": 7,
+        "ctx_chars": 18657
+      },
+      {
+        "name": "Client-facing, non-financial",
+        "passed": true,
+        "failed_checks": [],
+        "in": 4114,
+        "out": 703,
+        "latency": 16888,
+        "chunks": 14,
+        "docs": 6,
+        "ctx_chars": 12421
+      }
+    ],
+    "passed": 8
+  },
+  {
+    "k": 24,
+    "run": 2,
+    "cases": [
+      {
+        "name": "Documented internal process",
+        "passed": false,
+        "failed_checks": [
+          "flag"
+        ],
+        "in": 4453,
+        "out": 1283,
+        "latency": 25536,
+        "chunks": 24,
+        "docs": 5,
+        "ctx_chars": 13631
+      },
+      {
+        "name": "Documented financial decision",
+        "passed": false,
+        "failed_checks": [
+          "refuse"
+        ],
+        "in": 7811,
+        "out": 722,
+        "latency": 17261,
+        "chunks": 24,
+        "docs": 11,
+        "ctx_chars": 25525
+      },
+      {
+        "name": "Topic absent from documents",
+        "passed": true,
+        "failed_checks": [],
+        "in": 734,
+        "out": 41,
+        "latency": 1816,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Mixed coverage",
+        "passed": true,
+        "failed_checks": [],
+        "in": 3841,
+        "out": 160,
+        "latency": 5286,
+        "chunks": 14,
+        "docs": 5,
+        "ctx_chars": 11821
+      },
+      {
+        "name": "Cross-document synthesis",
+        "passed": true,
+        "failed_checks": [],
+        "in": 4588,
+        "out": 920,
+        "latency": 19977,
+        "chunks": 24,
+        "docs": 5,
+        "ctx_chars": 14503
+      },
+      {
+        "name": "False premise correction",
+        "passed": true,
+        "failed_checks": [],
+        "in": 742,
+        "out": 161,
+        "latency": 4383,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Exact figure recall",
+        "passed": true,
+        "failed_checks": [],
+        "in": 6468,
+        "out": 294,
+        "latency": 6341,
+        "chunks": 14,
+        "docs": 7,
+        "ctx_chars": 18657
+      },
+      {
+        "name": "Client-facing, non-financial",
+        "passed": true,
+        "failed_checks": [],
+        "in": 4114,
+        "out": 685,
+        "latency": 14689,
+        "chunks": 14,
+        "docs": 6,
+        "ctx_chars": 12421
+      }
+    ],
+    "passed": 6
+  },
+  {
+    "k": 24,
+    "run": 3,
+    "cases": [
+      {
+        "name": "Documented internal process",
+        "passed": false,
+        "failed_checks": [
+          "flag"
+        ],
+        "in": 4453,
+        "out": 1248,
+        "latency": 24108,
+        "chunks": 24,
+        "docs": 5,
+        "ctx_chars": 13631
+      },
+      {
+        "name": "Documented financial decision",
+        "passed": true,
+        "failed_checks": [],
+        "in": 7811,
+        "out": 689,
+        "latency": 17167,
+        "chunks": 24,
+        "docs": 11,
+        "ctx_chars": 25525
+      },
+      {
+        "name": "Topic absent from documents",
+        "passed": true,
+        "failed_checks": [],
+        "in": 734,
+        "out": 45,
+        "latency": 2183,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Mixed coverage",
+        "passed": false,
+        "failed_checks": [
+          "refuse"
+        ],
+        "in": 3841,
+        "out": 151,
+        "latency": 4758,
+        "chunks": 14,
+        "docs": 5,
+        "ctx_chars": 11821
+      },
+      {
+        "name": "Cross-document synthesis",
+        "passed": true,
+        "failed_checks": [],
+        "in": 4588,
+        "out": 1002,
+        "latency": 19792,
+        "chunks": 24,
+        "docs": 5,
+        "ctx_chars": 14503
+      },
+      {
+        "name": "False premise correction",
+        "passed": true,
+        "failed_checks": [],
+        "in": 742,
+        "out": 95,
+        "latency": 3049,
+        "chunks": 0,
+        "docs": 0,
+        "ctx_chars": 97
+      },
+      {
+        "name": "Exact figure recall",
+        "passed": true,
+        "failed_checks": [],
+        "in": 6468,
+        "out": 264,
+        "latency": 6300,
+        "chunks": 14,
+        "docs": 7,
+        "ctx_chars": 18657
+      },
+      {
+        "name": "Client-facing, non-financial",
+        "passed": true,
+        "failed_checks": [],
+        "in": 4114,
+        "out": 607,
+        "latency": 13159,
+        "chunks": 14,
+        "docs": 6,
+        "ctx_chars": 12421
+      }
+    ],
+    "passed": 6
+  }
+]
