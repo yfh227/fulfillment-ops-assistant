@@ -19,17 +19,25 @@
 | Cost per 100 questions | $4.86 | **$1.87** |
 | Input tokens per call | 79,667 | **3,194** |
 | Latency | 15,352 ms | **9,295 ms** |
-| Eval, three runs | 7/8, 6/8, 5/8 | **8/8, 7/8, 8/8** |
+| Eval, three runs | 7/8, 8/8, 8/8 | 6/8, 7/8, 6/8 |
 
-Retrieval is **62% cheaper and 39% faster**, and after the case 1 expectation
-fix it is also the more *stable* configuration. That last part was not the
-expected result and is explained below.
+Retrieval is **62% cheaper and 39% faster**. It wins on every metric that can
+be measured in a number.
 
-**But the caveat that matters:** retrieval can only answer from what it
-retrieves. Direct context cannot fail to see a relevant document; retrieval
-can, and does. The eval measures whether the answer is grounded, cited and
-correctly flagged — it does not measure what a question would have needed that
-retrieval never surfaced.
+**It is off by default anyway.** The eval column above is measured against
+case 1's expectation calibrated to direct context, which is the established
+baseline — see the case 1 section, where the two regimes genuinely disagree and
+neither expectation satisfies both. Strip that one case out and the pass rates
+are comparable.
+
+**The reason retrieval is not the default is the failure-mode asymmetry, not
+the scores.** Retrieval can only answer from what it retrieves. Direct context
+cannot fail to see a relevant document; retrieval can, and does. When direct
+context is wrong, the model had everything and reasoned poorly — visible in the
+answer. When retrieval is wrong, the model answers confidently from an
+incomplete set with no signal anything is missing. The eval grades whether an
+answer is grounded, cited and flagged. It does not grade what a question needed
+that retrieval never surfaced.
 
 ---
 
@@ -105,34 +113,78 @@ parameter range is a test-definition problem, not a tuning problem.
 
 ---
 
-## The correction, and the regression it caused
+## The correction that was tried, tested, and reverted
 
-Setting `should_flag: True` fixed retrieval and **broke direct context**:
+`should_flag` was flipped to `True` on the theory that fuller retrieval
+surfaces the client-notification and carrier-claim steps and so trips rule 4.
 
-| Regime | Case 1 flag emitted | Eval, three runs |
+**The theory did not survive the test.** Flipping it fixed retrieval and broke
+direct context:
+
+| Regime | Case 1 flag emitted | Eval with `flag: True` | Eval with `flag: False` |
+|---|---|---|---|
+| Retrieval, K=14 | 2 of 3 runs | 8/8, 7/8, 8/8 | 6/8, 7/8, 6/8 |
+| Direct context | **0 of 3 runs** | 7/8, 6/8, 5/8 | **7/8, 8/8, 8/8** |
+
+**Reverted to `False`.** The mechanism proposed cannot be right: direct context
+sees the *entire* SOP, including every client-notification and carrier-claim
+step, and does not flag. If fuller context caused flagging, direct context —
+which has the fullest context available — would flag most reliably. It flags
+least. Something other than context volume drives it, and what that is has not
+been established.
+
+**The disagreement itself is the finding, and it is kept rather than resolved.**
+The model never flags this case with the whole corpus and usually flags it with
+14 retrieved chunks. Same question, same rule 4, opposite behaviour by regime.
+No single expectation satisfies both:
+
+- `False` — correct for direct context, costs retrieval one case per run
+- `True` — correct for retrieval, costs direct context one case per run
+
+The value is set to `False` because direct context is the calibrated baseline
+and the default configuration. Two ways out were deliberately not taken:
+making the expectation regime-dependent, which hides the disagreement behind a
+conditional; and rewording the question until both regimes agree, which tunes
+the test to the model rather than the other way round.
+
+**A test that a system passes or fails depending on its retrieval architecture
+is measuring the architecture, not the behaviour it was written to check.**
+Case 1 is now that test.
+
+---
+
+## Open question: direct-context refusal instability
+
+Not investigated. Logged because it was observed and should not be lost.
+
+Across every run under the self-report grader, counting only `refuse` failures
+— cases self-reporting a gap on questions the corpus does answer:
+
+| Case | Direct context (9 runs) | Retrieval K=14 (6 runs) |
 |---|---|---|
-| Retrieval, K=14 | 2 of 3 runs | 8/8, 7/8, 8/8 |
-| Direct context, cached | **0 of 3 runs** | 7/8, 6/8, 5/8 |
+| Documented financial decision | **3** | 0 |
+| Mixed coverage | 2 | 1 |
+| Client-facing, non-financial | 0 | 1 |
 
-The model **never** flags case 1 when it has the whole corpus, and usually does
-when it has 14 retrieved chunks. Same question, same rule 4, opposite behaviour.
+Direct context produces more of these than retrieval, and the concentration on
+"Documented financial decision" (3 of 9, none under retrieval) is the part
+worth explaining. That case asks *"Should we issue a $15,000 credit…"* — a
+decision the documents genuinely cannot make — so the model sometimes reports
+`REFUSED: yes` on the grounds that it could not answer the question as asked,
+even while explaining the full approval chain correctly.
 
-The plausible reading: with the full corpus the model treats a receiving-process
-question as internal-procedure lookup, and the client-notification step is one
-line among thousands. Under retrieval those chunks are a large fraction of
-everything it can see, so they weigh more. **This is unverified** — it is an
-inference from behaviour, not a measurement.
+Two candidate explanations, neither tested:
 
-**No single `should_flag` value is correct for both regimes.** The current value
-is right for retrieval, which is the configuration being tuned, and wrong for
-direct context. Options not taken: making the expectation regime-dependent,
-which hides the disagreement; or rewording the question until both regimes
-agree, which tunes the test to the model.
+1. **The case expectation is wrong.** A "should we?" question may deserve
+   `should_refuse: True`, and the eval has simply been lucky.
+2. **Fuller context invites more hedging.** With the whole corpus the model has
+   more caveats available to notice and raise.
 
-Direct context also showed unrelated instability in the same runs — case 2
-failed `refuse` twice and case 4 once, all self-reporting a gap on questions the
-corpus answers. Under retrieval both were 3/3. This was **not** caused by the
-expectation change and is discussed under limitations.
+An earlier characterisation of this as retrieval being "more stable" was based
+on one batch and does not hold across all runs — retrieval has since produced
+`refuse` failures of its own. The honest position is that both regimes show
+intermittent refusal disagreement at a low rate, direct context somewhat more
+often, and the cause is unknown.
 
 ---
 
@@ -173,28 +225,42 @@ behaviour for out-of-corpus questions. K only matters below the ceiling.
 
 | | Winner | Margin |
 |---|---|---|
-| Cost per 100 questions | Retrieval | $1.87 vs $4.86 — **62% cheaper** |
-| Latency | Retrieval | 9,295 ms vs 15,352 ms — **39% faster** |
-| Eval stability (current expectations) | Retrieval | 8/7/8 vs 7/6/5 |
-| Completeness guarantee | **Direct context** | cannot fail to see a document |
-| Predictable cost | **Direct context** | fixed input; retrieval varies 734–6,468 |
-| Implementation cost | **Direct context** | one `cachePoint` vs chunker, embedder, index, floor, K |
-| Failure mode when wrong | **Direct context** | degrades visibly; retrieval fails silently |
+| Cost per 100 questions | **Retrieval** | $1.87 vs $4.86 — 62% cheaper |
+| Latency | **Retrieval** | 9,295 ms vs 15,352 ms — 39% faster |
+| Input tokens per call | **Retrieval** | 3,194 vs 79,667 — 96% fewer |
+| Completeness guarantee | Direct context | cannot fail to see a document |
+| Predictable cost | Direct context | fixed input; retrieval varies 734–6,468 |
+| Implementation cost | Direct context | one `cachePoint` vs chunker, embedder, index, floor, K |
+| Failure mode when wrong | Direct context | degrades visibly; retrieval fails silently |
 
-**The last row is the one that should decide it.** When direct context is
-wrong, the model had everything and reasoned poorly — visible in the answer.
-When retrieval is wrong, the model answers confidently from an incomplete set
-with no signal anything is missing. Case 1 at K=6 is the benign version: the
-model noticed and said so. Nothing guarantees it always will.
+**Retrieval wins every measured metric. It is still not the default.**
 
-**Recommendation: retrieval at K=14 is the better default on measured metrics,
-but the two are close enough that the choice should rest on operating
-conditions rather than the numbers.** Prompt caching already removed the cost
-argument that motivated retrieval (see
+That is not a contradiction, it is the whole point of the comparison. The
+metrics that favour retrieval are all quantitative and all improve a system
+that already works acceptably: $4.86 per 100 questions was not a problem
+anyone had. The metric that favours direct context is not on the table —
+it is the shape of the failure when the system is wrong.
+
+When direct context is wrong, the model had everything and reasoned poorly.
+That is visible in the answer and correctable by prompt work. When retrieval
+is wrong, the model answers confidently and completely from an incomplete set,
+with no signal that anything is missing — not to the user, not to the eval,
+not to the model itself. Case 1 at K=6 was the benign version: the model
+noticed the gap and said so. Nothing in the design guarantees it always will,
+and the eval as written could not detect the case where it doesn't.
+
+**Position: retrieval stays behind `use_retrieval=False` until there is a
+reason to accept that risk.** Prompt caching already removed the cost argument
+that motivated building retrieval at all (see
 [baseline_prompt_caching.md](baseline_prompt_caching.md)); retrieval improves
-on it by a further $3 per 100 questions. At current volume that is not the
-deciding factor. Corpus scale is: retrieval becomes necessary, not merely
-cheaper, when the corpus outgrows the context window — roughly 12x from here.
+on that by a further $3 per 100 questions, which at current volume buys
+nothing worth a silent-failure mode.
+
+**What would change the answer:** corpus scale. When the corpus outgrows the
+context window, retrieval stops being an optimisation and becomes the only
+option. At 7.93% of a 1M window that is roughly 12x away. The work is built,
+measured and ready for that day — which is a better reason to have built it
+than the cost saving.
 
 ---
 

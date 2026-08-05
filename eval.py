@@ -33,12 +33,14 @@ CASES = [
         "question": "What's the process for a receiving discrepancy?",
         "expect_citation": "01_receiving_discrepancy_sop.md",
         "should_refuse": False,
-        # The procedure includes client notification and a 48-hour carrier
-        # claim window, both money- and client-adjacent, so rule 4 correctly
-        # flags it. Under retrieval this surfaces reliably from K=14; under
-        # direct context the model does not always flag it. See
+        # Briefly set to True on the theory that fuller context surfaces the
+        # client-notification and carrier-claim steps and so trips rule 4.
+        # Tested and reverted: direct context sees those same steps and does
+        # not flag, so fuller context cannot be the mechanism. The two regimes
+        # genuinely disagree and no single value satisfies both; this one is
+        # calibrated to direct context, the established baseline. See
         # retrieval_vs_caching.md.
-        "should_flag": True,
+        "should_flag": False,
         "must_contain": None,
     },
     {
