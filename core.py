@@ -6,6 +6,7 @@ than read from Streamlit secrets; when omitted, boto3's default credential
 chain applies.
 """
 
+import re
 import time
 
 import boto3
@@ -54,7 +55,26 @@ charges), end your response with a clearly marked line:
    ⚠️ NEEDS HUMAN REVIEW — <one line on why>
 
    Apply this whenever money or a client is involved, even if the documents \
-answer the question fully and even if you are confident. Err toward flagging."""
+answer the question fully and even if you are confident. Err toward flagging.
+
+5. SELF-REPORT. Make the very last line of your response exactly one of:
+
+   REFUSED: yes
+   REFUSED: no
+
+   Answer **yes** if any part of the question could not be answered from the \
+documents — including when you answered part of it and had to state that the \
+rest is not covered, and including when you corrected a false premise because \
+the documents do not support it.
+
+   Answer **no** when the documents answered what was actually asked. Noting \
+in passing what the documents happen not to contain, or which details a \
+decision would still depend on, does not make it a yes if you answered the \
+question. The test is whether the question was answered, not whether you \
+added a caveat.
+
+   This line is read by an automated check. It must be the final line, on its \
+own, with no other text after it."""
 
 
 # --------------------------------------------------------------------------
@@ -132,18 +152,56 @@ REFUSAL_PHRASES = (
 REFUSAL_MAX_WORDS = 400
 
 
-def refused(answer: str) -> bool:
-    """True only when a refusal phrase signals an actual refusal.
+# Tolerant of markdown emphasis the model may add around the field
+# ("**REFUSED:** yes", "> REFUSED: no"). The whole line is matched so it can
+# be stripped cleanly before display.
+SELF_REPORT_RE = re.compile(
+    r"^[\s>*_#`-]*REFUSED[:\s*_`]*\s*(yes|no)\b.*$", re.I | re.M)
 
-    A refusal phrase counts only in a short answer. In a long one the phrase is
-    a scope caveat or a clarifying aside within a complete answer, not a
-    refusal to answer. See REFUSAL_MAX_WORDS for the measurement behind the
-    threshold.
+
+def self_reported_refusal(answer: str) -> bool | None:
+    """Read the model's REFUSED: self-report. None if absent.
+
+    The last occurrence wins — the line is specified as final, and an earlier
+    mention would be the model discussing the field rather than emitting it.
+    """
+    found = SELF_REPORT_RE.findall(answer)
+    if not found:
+        return None
+    return found[-1].lower() == "yes"
+
+
+def strip_self_report(answer: str) -> str:
+    """Remove the self-report line for display. See app.render_answer."""
+    return SELF_REPORT_RE.sub("", answer).rstrip()
+
+
+def refused_by_phrase(answer: str) -> bool:
+    """Legacy prose heuristic. Retained only as a fallback.
+
+    Length-dependent, and that dependency is the known defect: the threshold
+    was calibrated on direct-context answers (complete 484-721 words, refusals
+    26-259) and does not transfer to retrieval, where complete answers run
+    143-352 words and sit entirely inside the refusal band.
     """
     lowered = answer.lower()
     if not any(phrase in lowered for phrase in REFUSAL_PHRASES):
         return False
     return len(answer.split()) < REFUSAL_MAX_WORDS
+
+
+def refused(answer: str) -> bool:
+    """True when the answer declined, wholly or partly, to answer from source.
+
+    Prefers the model's structured self-report, which carries no dependency on
+    answer length and therefore transfers between the direct-context and
+    retrieval regimes. Falls back to the prose heuristic only when the field is
+    absent — older stored answers, or a response that ignored rule 5.
+    """
+    reported = self_reported_refusal(answer)
+    if reported is not None:
+        return reported
+    return refused_by_phrase(answer)
 
 
 def review_flagged(answer: str) -> bool:

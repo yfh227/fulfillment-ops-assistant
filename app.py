@@ -37,12 +37,17 @@ def init_usage_db() -> bool:
 
 
 def render_answer(answer: str) -> None:
-    """Display an answer, escaping $ so Streamlit doesn't parse it as LaTeX.
+    """Display an answer, stripped of the machine-readable self-report and
+    escaped so Streamlit doesn't parse currency as LaTeX.
+
+    The system prompt requires a trailing "REFUSED: yes|no" line for the eval
+    grader. It is not for the reader, so it is removed here — the only place
+    an answer reaches a human.
 
     Rate and invoice figures come back as paired amounts ("$250 - $2,500"),
     which Streamlit would otherwise treat as inline math and mangle.
     """
-    st.markdown(answer.replace("$", r"\$"))
+    st.markdown(core.strip_self_report(answer).replace("$", r"\$"))
 
 
 try:
