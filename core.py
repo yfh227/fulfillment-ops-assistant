@@ -203,7 +203,77 @@ def build_context(docs: list[tuple[str, str]]) -> str:
     return "\n\n".join(blocks)
 
 
-def ask(question: str, context: str, client=None, use_cache: bool = True) -> dict:
+# --------------------------------------------------------------------------
+# Retrieval
+# --------------------------------------------------------------------------
+
+RETRIEVAL_K = 6
+
+# Chunks scoring below this are dropped even if that returns fewer than K.
+#
+# Chosen from measured scores across the eight eval questions, not from the
+# two-query sanity check that suggested a 0.23/0.69 split — that gap did not
+# survive contact with the real question set:
+#
+#   should-refuse cases   topic absent 0.254, false premise 0.258  (rank 1)
+#   must-answer cases     mixed coverage 0.345, client-facing 0.348 (rank 6)
+#
+# The usable gap is 0.258-0.345, and 0.30 sits near its centre: 0.042 above
+# the highest score any out-of-corpus question achieved, 0.045 below the
+# lowest score a legitimate supporting chunk needed. A floor at the midpoint
+# of the original 0.23-0.69 range would have discarded every chunk for two
+# cases that must answer.
+RELEVANCE_FLOOR = 0.30
+
+NO_MATCH_CONTEXT = (
+    "No documents in the reference set matched this question closely enough "
+    "to be considered relevant."
+)
+
+
+def retrieve_context(question: str, client=None, k: int = RETRIEVAL_K,
+                     floor: float = RELEVANCE_FLOOR) -> tuple[str, list]:
+    """Assemble context from the top-k chunks that clear the relevance floor.
+
+    Returns (context, hits). Chunks are grouped under their source document
+    using the same ===== BEGIN DOCUMENT: filename ===== structure as the
+    full-corpus path, so the citation rule needs no change: the model sees
+    filenames in exactly the form it is asked to cite.
+
+    Imported lazily so core.py stays importable without numpy or a built
+    index — app.py, stats.py and eval.py all import this module.
+    """
+    from vector_store import embed_query, load_index, search_vec
+
+    embeddings, payload, _ = load_index()
+    hits = search_vec(embed_query(question, client), k, embeddings, payload)
+    kept = [h for h in hits if h.score >= floor]
+
+    if not kept:
+        return NO_MATCH_CONTEXT, []
+
+    # Group by source, best-scoring document first, preserving each
+    # document's own chunk order within its block.
+    order, grouped = [], {}
+    for h in kept:
+        if h.source not in grouped:
+            grouped[h.source] = []
+            order.append(h.source)
+        grouped[h.source].append(h)
+
+    blocks = []
+    for src in order:
+        body = "\n\n".join(h.text for h in grouped[src])
+        blocks.append(
+            f"===== BEGIN DOCUMENT: {src} =====\n"
+            f"{body}\n"
+            f"===== END DOCUMENT: {src} ====="
+        )
+    return "\n\n".join(blocks), kept
+
+
+def ask(question: str, context: str = None, client=None,
+        use_cache: bool = True, use_retrieval: bool = False) -> dict:
     """Ask a grounded question; return the answer plus call metrics.
 
     Returns a dict with keys: answer, latency_ms, input_tokens, output_tokens,
@@ -223,6 +293,13 @@ def ask(question: str, context: str, client=None, use_cache: bool = True) -> dic
     Bedrock reported it.
     """
     client = client or get_bedrock_client()
+
+    hits = None
+    if use_retrieval:
+        # Retrieval replaces the caller's context entirely.
+        context, hits = retrieve_context(question, client)
+    elif context is None:
+        raise ValueError("context is required when use_retrieval is False")
 
     if use_cache:
         content = [
@@ -255,4 +332,10 @@ def ask(question: str, context: str, client=None, use_cache: bool = True) -> dic
         "cache_read_tokens": read,
         "cache_write_tokens": write,
         "total_input_tokens": plain + read + write,
+        "retrieved": None if hits is None else [
+            {"source": h.source, "section": h.section,
+             "score": round(h.score, 4)} for h in hits
+        ],
+        "retrieved_docs": None if hits is None else sorted(
+            {h.source for h in hits}),
     }

@@ -15,6 +15,8 @@ from pathlib import Path
 
 from core import (
     FLAG_MARKER,
+    RELEVANCE_FLOOR as core_FLOOR,
+    RETRIEVAL_K as core_RETRIEVAL_K,
     REFUSAL_PHRASES,
     SYSTEM_PROMPT,
     ask,
@@ -106,9 +108,18 @@ CASES = [
     },
 ]
 
+# Set EVAL_RETRIEVAL=1 to answer from retrieved chunks instead of the whole
+# corpus. Off by default so the caching baseline stays reproducible.
+USE_RETRIEVAL = os.environ.get("EVAL_RETRIEVAL") == "1"
+
 # Prompt caching is ON by default, matching core.ask. Set EVAL_PROMPT_CACHE=0
 # to run uncached and reproduce the figures in baseline_direct_context.md.
-USE_CACHE = os.environ.get("EVAL_PROMPT_CACHE", "1") != "0"
+#
+# Retrieval turns it off: the cached prefix is the document context, and under
+# retrieval that context differs for every question, so the cache can never
+# hit. Leaving it on would pay the 1.25x write premium on every call and read
+# back nothing.
+USE_CACHE = os.environ.get("EVAL_PROMPT_CACHE", "1") != "0" and not USE_RETRIEVAL
 
 
 def _credentials() -> tuple[str | None, str | None]:
@@ -164,6 +175,9 @@ def main() -> int:
     print(f"context chars : {len(context):,}")
     print(f"prompt sha256 : {prompt_sha} ({len(SYSTEM_PROMPT):,} chars)")
     print(f"prompt cache  : {'ON' if USE_CACHE else 'off'}")
+    print(f"retrieval     : {'ON' if USE_RETRIEVAL else 'off'}"
+          + (f"  (K={core_RETRIEVAL_K}, floor={core_FLOOR})"
+             if USE_RETRIEVAL else ""))
     print()
 
     header = (
@@ -177,7 +191,8 @@ def main() -> int:
 
     results = []
     for case in CASES:
-        result = ask(case["question"], context, bedrock_client, use_cache=USE_CACHE)
+        result = ask(case["question"], context, bedrock_client,
+                     use_cache=USE_CACHE, use_retrieval=USE_RETRIEVAL)
         answer = result["answer"]
         checks = grade(case, answer)
         passed = all(v for v in checks.values() if v is not None)
