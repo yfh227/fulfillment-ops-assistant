@@ -98,6 +98,82 @@ ROLE_ADMIN = "admin"
 CONTENT_ROLES = (ROLE_BILLING, ROLE_WAREHOUSE, ROLE_ACCOUNT)
 ROLES = CONTENT_ROLES + (ROLE_ADMIN,)
 
+# The role-to-document mapping, derived from each document's own header
+# metadata (Owner, Distribution, Attendees, Negotiated by) rather than from
+# topic. The full derivation, including which assignments are metadata-backed
+# and which are judgment calls, is in v4_role_based_access.md - that file is
+# the source of truth and this dict must match its table.
+#
+# 14_onboarding_case_standard_fernpost.md appears in no list on purpose. It
+# states it has no named Account Manager, so it belongs to no role in this
+# model, and it is the deliberate access-denied test case for all three.
+ROLE_DOCUMENTS = {
+    ROLE_BILLING: frozenset({
+        "00_company_profile.md",
+        "02_billing_rate_card.md",
+        "06_billing_dispute_policy.md",
+        "10_incident_2026-01-22_integration_failure.md",
+        "11_incident_2026-03-08_mixed_client_inventory.md",
+        "19_inventory_accuracy_report_2026_q2.md",
+        "22_inventory_accuracy_report_2026_q3.md",
+    }),
+    ROLE_WAREHOUSE: frozenset({
+        "00_company_profile.md",
+        "01_receiving_discrepancy_sop.md",
+        "04_cycle_count_policy.md",
+        "07_reno_putaway_sop.md",
+        "08_peak_season_operating_procedures.md",
+        "09_incident_2025-12-01_wms_outage.md",
+        "10_incident_2026-01-22_integration_failure.md",
+        "11_incident_2026-03-08_mixed_client_inventory.md",
+        "19_inventory_accuracy_report_2026_q2.md",
+        "20_new_hire_training_certification.md",
+        "21_putaway_sop_richmond_columbus.md",
+        "22_inventory_accuracy_report_2026_q3.md",
+    }),
+    ROLE_ACCOUNT: frozenset({
+        "00_company_profile.md",
+        "03_escalation_matrix.md",
+        "05_client_onboarding_checklist.md",
+        "09_incident_2025-12-01_wms_outage.md",
+        "10_incident_2026-01-22_integration_failure.md",
+        "11_incident_2026-03-08_mixed_client_inventory.md",
+        "12_onboarding_case_enterprise_northwind.md",
+        "13_onboarding_case_growth_lumen.md",
+        "15_carrier_management_policy.md",
+        "16_vendor_and_temporary_labour_policy.md",
+        "17_enterprise_rate_schedule_northwind.md",
+        "18_growth_rate_schedule_lumen.md",
+        "20_new_hire_training_certification.md",
+    }),
+}
+
+
+def permitted_sources(role: str) -> frozenset | None:
+    """Filenames a role may see. None means unrestricted.
+
+    Only ROLE_ADMIN is unrestricted. An unrecognised role gets the empty set
+    rather than everything - this fails closed, so a typo'd or renamed role
+    sees nothing instead of the whole corpus.
+    """
+    if role == ROLE_ADMIN:
+        return None
+    return ROLE_DOCUMENTS.get(role, frozenset())
+
+
+def get_documents_for_role(role: str, all_docs: list) -> list:
+    """Filter (filename, text) pairs down to what `role` is permitted to see.
+
+    Order is preserved. This covers the direct-context path only; the
+    retrieval path draws from the embedded index instead and is restricted
+    separately, in retrieve_context(). Both are required - filtering one and
+    not the other leaks the whole corpus whenever the other mode is active.
+    """
+    permitted = permitted_sources(role)
+    if permitted is None:
+        return list(all_docs)
+    return [(key, text) for key, text in all_docs if key in permitted]
+
 
 # --------------------------------------------------------------------------
 # Answer analysis
@@ -320,7 +396,7 @@ NO_MATCH_CONTEXT = (
 
 def retrieve_context(question: str, client=None, k: int = RETRIEVAL_K,
                      floor: float = RELEVANCE_FLOOR,
-                     query_vec=None) -> tuple[str, list]:
+                     query_vec=None, role: str = None) -> tuple[str, list]:
     """Assemble context from the top-k chunks that clear the relevance floor.
 
     Returns (context, hits). Chunks are grouped under their source document
@@ -328,12 +404,34 @@ def retrieve_context(question: str, client=None, k: int = RETRIEVAL_K,
     full-corpus path, so the citation rule needs no change: the model sees
     filenames in exactly the form it is asked to cite.
 
+    `role` restricts which documents may contribute chunks. role=None means
+    unrestricted, which is what the eval and tuning scripts want; the app
+    always passes a real role.
+
     Imported lazily so core.py stays importable without numpy or a built
     index — app.py, stats.py and eval.py all import this module.
     """
     from vector_store import embed_query, load_index, search_vec
 
     embeddings, payload, _ = load_index()
+
+    # Restrict the candidate set BEFORE ranking, never after.
+    #
+    # Filtering the returned hits instead would leave the whole corpus
+    # competing for the k slots, so a role would silently receive fewer than k
+    # chunks every time a document it cannot see outranked one it can - the
+    # restriction would look like it worked while quietly degrading recall.
+    # Cutting candidates first means all k come from permitted documents.
+    #
+    # Both operations copy, so the lru_cached index is never mutated.
+    permitted = permitted_sources(role) if role is not None else None
+    if permitted is not None:
+        keep = [i for i, chunk in enumerate(payload)
+                if chunk["source"] in permitted]
+        if not keep:
+            return NO_MATCH_CONTEXT, []
+        embeddings = embeddings[keep]
+        payload = [payload[i] for i in keep]
     # query_vec lets a caller reuse an embedding across repeated retrievals of
     # the same question — sweeping K, for instance, where the vector is
     # identical and only the cut-off changes.
@@ -366,7 +464,8 @@ def retrieve_context(question: str, client=None, k: int = RETRIEVAL_K,
 
 
 def ask(question: str, context: str = None, client=None,
-        use_cache: bool = True, use_retrieval: bool = False) -> dict:
+        use_cache: bool = True, use_retrieval: bool = False,
+        role: str = None) -> dict:
     """Ask a grounded question; return the answer plus call metrics.
 
     Returns a dict with keys: answer, latency_ms, input_tokens, output_tokens,
@@ -389,8 +488,11 @@ def ask(question: str, context: str = None, client=None,
 
     hits = None
     if use_retrieval:
-        # Retrieval replaces the caller's context entirely.
-        context, hits = retrieve_context(question, client)
+        # Retrieval replaces the caller's context entirely, so the role has to
+        # be enforced here too. The caller filtering its document list only
+        # protects the direct-context path - without this, turning retrieval on
+        # would quietly restore access to the full corpus.
+        context, hits = retrieve_context(question, client, role=role)
     elif context is None:
         raise ValueError("context is required when use_retrieval is False")
 

@@ -136,9 +136,18 @@ if not documents:
     st.error(f"No .md documents found in s3://{core.DOCS_BUCKET}.")
     st.stop()
 
-st.caption(f"Answering from {len(documents)} documents in s3://{core.DOCS_BUCKET}")
-with st.expander("Loaded documents"):
-    for key, text in documents:
+# Everything downstream reads `visible`, never `documents`, so a restricted
+# document cannot re-enter the context by accident further down the file.
+visible = core.get_documents_for_role(role, documents)
+
+st.caption(
+    f"Answering as `{role}` from {len(visible)} of {len(documents)} documents "
+    f"in s3://{core.DOCS_BUCKET}"
+)
+with st.expander(f"Documents visible to {role}"):
+    if not visible:
+        st.write("This role has access to no documents.")
+    for key, text in visible:
         st.write(f"- `{key}` ({len(text):,} chars)")
 
 st.subheader("Ask Claude")
@@ -151,18 +160,19 @@ if st.button("Ask") and question.strip():
         try:
             result = core.ask(
                 question,
-                core.build_context(documents),
+                core.build_context(visible),
                 get_bedrock_client(),
+                role=role,
             )
         except Exception as e:
             st.session_state.last_log_id = usage_log.log_call(
-                question, error=e, documents=documents
+                question, error=e, documents=visible
             )
             st.session_state.last_result = None
             st.session_state.last_error = str(e)
         else:
             st.session_state.last_log_id = usage_log.log_call(
-                question, result=result, documents=documents
+                question, result=result, documents=visible
             )
             st.session_state.last_result = result
             st.session_state.last_error = None
