@@ -150,6 +150,11 @@ confirm the existing regression suite still passes unchanged. Role-based
 access should be additive, not a regression on what already worked.
 ```
 
+`14_onboarding_case_standard_fernpost.md` is restricted from all three roles by
+design — see *Resolved decisions* below. It is the intended access-denied case for
+every role, and the only document in the corpus where "your role can't see this"
+and "this isn't in any document" can be distinguished with certainty.
+
 ---
 
 ## Part 6 — Document it
@@ -190,7 +195,7 @@ every role their metadata names.
 | 11 | `11_incident_2026-03-08_mixed_client_inventory.md` | ● | ● | ● | Multi-role (metadata) | Attendees: Reno FM, 2 AMs, 1 Billing Analyst |
 | 12 | `12_onboarding_case_enterprise_northwind.md` | | | ● | Metadata match | Senior Account Manager: J. Baptiste |
 | 13 | `13_onboarding_case_growth_lumen.md` | | | ● | Metadata match | Account Manager: P. Oyelaran |
-| 14 | `14_onboarding_case_standard_fernpost.md` | | | ● | Judgment call (contested) | header states "no named Account Manager" |
+| 14 | `14_onboarding_case_standard_fernpost.md` | | | | **Restricted (no role)** | header states "no named Account Manager" — deliberate |
 | 15 | `15_carrier_management_policy.md` | | | ● | Judgment call | Owner = VP Operations |
 | 16 | `16_vendor_and_temporary_labour_policy.md` | | | ● | Judgment call | Owner = VP Operations |
 | 17 | `17_enterprise_rate_schedule_northwind.md` | | | ● | Metadata match (owner-wins) | Negotiated by: Senior Account Manager |
@@ -200,24 +205,49 @@ every role their metadata names.
 | 21 | `21_putaway_sop_richmond_columbus.md` | | ● | | Metadata match | Owner: Facility Managers, Richmond & Columbus |
 | 22 | `22_inventory_accuracy_report_2026_q3.md` | ● | ● | | Multi-role (metadata) | Distribution: Facility Managers + Finance |
 
-**Totals:** Billing Analyst 7 · Warehouse Lead 12 · Account Manager 14.
-All 23 documents covered; no orphans.
+**Totals:** Billing Analyst 7 · Warehouse Lead 12 · Account Manager 13.
+22 of 23 documents are assigned to at least one role. The 23rd,
+`14_onboarding_case_standard_fernpost.md`, is deliberately restricted from all
+three — see below. There are no accidental orphans.
 
-**By classification:** 8 metadata match, 8 judgment call, 6 multi-role, 1 universal.
+**By classification:** 8 metadata match, 7 judgment call, 6 multi-role,
+1 universal, 1 restricted.
 
-### Open items — resolve before Part 3 encodes this
+### Resolved decisions
 
-1. **Billing Analyst cannot see either rate schedule.** Owner-wins sends
-   `17_enterprise_rate_schedule_northwind.md` and `18_growth_rate_schedule_lumen.md`
-   to Account Manager exclusively, so a Billing Analyst asking about negotiated
-   client rates gets access-denied. They see the standard rate card (02) and the
-   dispute policy (06), but not client-specific rates. This reverses the starting
-   table's Billing row and should be a deliberate choice, not a side effect.
+Both items that were open after Part 1 are now closed. Part 3 has nothing left to
+infer.
 
-2. **`14_onboarding_case_standard_fernpost.md` is contested.** Assigned to Account
-   Manager for consistency with 12 and 13, but the document explicitly states it has
-   *no* named Account Manager (standard tier, pooled queue). Under owner-wins it
-   would belong to Onboarding Specialist — a role that does not exist in this model.
+**1. Billing Analyst does not see either rate schedule — deliberate.**
+
+`17_enterprise_rate_schedule_northwind.md` and `18_growth_rate_schedule_lumen.md`
+remain with Account Manager only, under owner-wins. Both documents record who
+negotiated them — Senior Account Manager (J. Baptiste) for Northwind, Account
+Manager (P. Oyelaran) for Lumen — and that stated ownership is the governing
+signal, not the fact that the content happens to be rate data.
+
+The consequence is intended: a Billing Analyst asking about negotiated client rates
+receives the access-denied message. They retain the standard rate card (02) and the
+billing dispute policy (06), so ordinary billing questions still resolve normally;
+client-specific negotiated terms are Account Manager territory. This reverses the
+Billing row in the original scoping table near the top of this document. That
+reversal is a decision, not an oversight — recorded here so a future reader does
+not "fix" it back.
+
+**2. `14_onboarding_case_standard_fernpost.md` is restricted from all three roles.**
+
+The document states explicitly that it has no named Account Manager — standard
+tier, pooled queue — so assigning it to Account Manager would assert something the
+document itself denies. Its only named owner is an Onboarding Specialist, a role
+that does not exist in this model. Rather than force it into the nearest available
+bucket, it is visible to no role.
+
+This makes it a deliberate **Part 5 test case**: all three roles should receive the
+Part 4 access-denied message when asking about Fernpost onboarding — not a normal
+answer, and not a normal "not in any document" refusal, because the document does
+exist in the corpus. It is the cleanest test available that access denial and
+genuine absence read as different situations, since it is the one document where
+those two cases can be told apart with certainty.
 
 ### Note on the role model
 
