@@ -425,6 +425,33 @@ ACCESS_DENIED_CONTEXT = (
     "it sits in documents this role is not permitted to see."
 )
 
+# Denial needs a higher bar than retrieval.
+#
+# RELEVANCE_FLOOR (0.30) answers "is this chunk worth putting in context". It
+# is the wrong question for access, which is "does the answer actually live
+# here". Reusing it told a billing analyst asking about parental leave -
+# absent from the corpus entirely - that the topic was outside their access,
+# because 16_vendor_and_temporary_labour_policy.md scored 0.4524 on the word
+# "labour" alone. Claiming information exists and is withheld, when it does
+# not exist, is its own kind of dishonesty.
+#
+# Measured over 10 genuinely-absent questions and the 22 role/question denial
+# decisions in eval_roles.py:
+#
+#   absent from corpus    6 of 10 clear nothing at all; the 4 that clear
+#                         RELEVANCE_FLOOR top out at 0.4524
+#   true denials          lowest is 0.5048 (standard-tier rate card), rising
+#                         to 0.7130 (escalation matrix)
+#
+# The usable gap is 0.4524-0.5048 and 0.48 sits near its centre: 0.0276 above
+# the highest score any absent question reached, 0.0248 below the lowest a
+# real denial needed.
+#
+# This governs which MESSAGE is shown, never what is retrievable. Document
+# filtering in get_documents_for_role and retrieve_context is unconditional,
+# so a misjudgement here costs accuracy of explanation, never access.
+DENIAL_FLOOR = 0.48
+
 
 def relevant_to_role(query_vec, permitted, k: int = None,
                      floor: float = None) -> tuple[bool, bool]:
@@ -477,7 +504,11 @@ def role_restricts_question(question: str, role: str, client=None,
     if query_vec is None:
         from vector_store import embed_query
         query_vec = embed_query(question, client)
-    anything, mine = relevant_to_role(query_vec, permitted, k, floor)
+    # DENIAL_FLOOR, not RELEVANCE_FLOOR - see the constant for the measured
+    # gap. A topical near-miss is not evidence that the answer exists.
+    anything, mine = relevant_to_role(
+        query_vec, permitted, k, DENIAL_FLOOR if floor is None else floor
+    )
     return anything and not mine
 
 
@@ -533,7 +564,7 @@ def retrieve_context(question: str, client=None, k: int = RETRIEVAL_K,
     # returning the role's next-best material would answer a question about one
     # document out of a different one. Costs a second dot product; no embedding.
     if permitted is not None:
-        anything, mine = relevant_to_role(query_vec, permitted, k, floor)
+        anything, mine = relevant_to_role(query_vec, permitted, k, DENIAL_FLOOR)
         if anything and not mine:
             return ACCESS_DENIED_CONTEXT, []
 
