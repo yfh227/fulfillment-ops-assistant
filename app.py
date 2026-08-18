@@ -1,4 +1,8 @@
+from pathlib import Path
+
 import streamlit as st
+import streamlit_authenticator as stauth
+import yaml
 
 import core
 import stats
@@ -7,6 +11,78 @@ import usage_log
 st.set_page_config(page_title="Fulfillment Ops Assistant", layout="wide")
 
 st.title("Fulfillment Ops Assistant")
+
+
+# --------------------------------------------------------------------------
+# Authentication
+#
+# Everything below the login gate is unreachable until a user authenticates,
+# including the S3 document load - an anonymous visitor should not be able to
+# make the app fetch the corpus at all.
+# --------------------------------------------------------------------------
+
+AUTH_CONFIG_PATH = Path(__file__).parent / "auth_config.yaml"
+
+
+def build_authenticator() -> stauth.Authenticate:
+    """Construct the authenticator fresh on each rerun.
+
+    Deliberately not wrapped in st.cache_resource: Authenticate owns the cookie
+    controller and mutates its own credentials dict on login and logout, so a
+    cached instance would leak one session's state into the next.
+    """
+    with open(AUTH_CONFIG_PATH, encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+    return stauth.Authenticate(
+        config["credentials"],
+        config["cookie"]["name"],
+        config["cookie"]["key"],
+        config["cookie"]["expiry_days"],
+    )
+
+
+def current_role() -> str:
+    """The role this session acts under.
+
+    streamlit-authenticator stores roles as a list. Every test user has exactly
+    one except admin, which carries all of them; taking the first entry makes
+    admin resolve to ROLE_ADMIN rather than depending on list order downstream.
+    """
+    roles = st.session_state.get("roles") or []
+    return roles[0] if roles else ""
+
+
+try:
+    authenticator = build_authenticator()
+except FileNotFoundError:
+    st.error(
+        f"No {AUTH_CONFIG_PATH.name} found. Generate one with "
+        "`python make_auth_config.py`."
+    )
+    st.stop()
+
+authenticator.login(location="main")
+
+if st.session_state.get("authentication_status") is False:
+    st.error("Username or password is incorrect.")
+    st.stop()
+
+if st.session_state.get("authentication_status") is None:
+    st.info("Log in to continue.")
+    st.stop()
+
+role = current_role()
+if role not in core.ROLES:
+    st.error(
+        f"Signed in, but the account has no recognised role ({role!r}). "
+        "Check the roles field in auth_config.yaml."
+    )
+    st.stop()
+
+with st.sidebar:
+    st.caption(f"Signed in as **{st.session_state.get('name')}**")
+    st.caption(f"Role: `{role}`")
+    authenticator.logout("Log out", "sidebar")
 
 
 @st.cache_resource

@@ -78,6 +78,28 @@ own, with no other text after it."""
 
 
 # --------------------------------------------------------------------------
+# Roles
+#
+# Canonical role identifiers. Defined here because three separate things need
+# to agree on them - the auth config that assigns a role to a user, the app
+# that reads it back out of session state, and the role-to-document mapping.
+# Two copies of a role name drift the moment either one is edited, and the
+# failure is silent: a typo'd role matches no documents and simply sees
+# nothing, which looks identical to a role that is legitimately restricted.
+# --------------------------------------------------------------------------
+
+ROLE_BILLING = "billing_analyst"
+ROLE_WAREHOUSE = "warehouse_lead"
+ROLE_ACCOUNT = "account_manager"
+ROLE_ADMIN = "admin"
+
+# Admin is deliberately excluded: it is an all-access testing identity, not a
+# role the document mapping is defined against.
+CONTENT_ROLES = (ROLE_BILLING, ROLE_WAREHOUSE, ROLE_ACCOUNT)
+ROLES = CONTENT_ROLES + (ROLE_ADMIN,)
+
+
+# --------------------------------------------------------------------------
 # Answer analysis
 #
 # Shared by eval.py (scoring) and usage_log.py (logging). Kept here, in the
