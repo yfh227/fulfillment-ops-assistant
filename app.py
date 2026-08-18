@@ -185,12 +185,20 @@ if st.session_state.get("last_error"):
 
 last_result = st.session_state.get("last_result")
 if last_result:
-    render_answer(last_result["answer"])
-    st.caption(
-        f"{last_result['latency_ms']} ms · "
-        f"{last_result['input_tokens']:,} in / "
-        f"{last_result['output_tokens']:,} out tokens"
-    )
+    if last_result.get("access_denied"):
+        # Deliberately not rendered as an answer. A refusal is the assistant
+        # reporting on the documents; this is the system reporting on the
+        # user's permissions. Showing them identically is the silent failure
+        # this part exists to remove, so they differ in wording and in shape.
+        st.warning(last_result["answer"])
+        st.caption("No model call was made for this question.")
+    else:
+        render_answer(last_result["answer"])
+        st.caption(
+            f"{last_result['latency_ms']} ms · "
+            f"{last_result['input_tokens']:,} in / "
+            f"{last_result['output_tokens']:,} out tokens"
+        )
 
     log_id = st.session_state.get("last_log_id")
     if log_id is not None:

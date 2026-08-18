@@ -149,6 +149,28 @@ ROLE_DOCUMENTS = {
 }
 
 
+ROLE_LABELS = {
+    ROLE_BILLING: "Billing Analyst",
+    ROLE_WAREHOUSE: "Warehouse Lead",
+    ROLE_ACCOUNT: "Account Manager",
+    ROLE_ADMIN: "Admin",
+}
+
+
+def access_denied_message(role: str) -> str:
+    """The user-facing response for a question a role may not ask.
+
+    Deliberately worded as a statement about access, not about coverage. The
+    system's ordinary refusal says the documents do not answer the question;
+    this says the documents do, and you are not permitted to see them. Those
+    are different situations and must not read the same way.
+    """
+    return (
+        f"That's outside what a {ROLE_LABELS.get(role, role)} has access to "
+        "in this system."
+    )
+
+
 def permitted_sources(role: str) -> frozenset | None:
     """Filenames a role may see. None means unrestricted.
 
@@ -393,6 +415,71 @@ NO_MATCH_CONTEXT = (
     "to be considered relevant."
 )
 
+# The second of two distinct signals. Until Part 4 both outcomes returned
+# NO_MATCH_CONTEXT, which collapsed "nothing in the corpus covers this" into
+# "the coverage exists but this role cannot see it". Sharing one constant made
+# a restriction indistinguishable from an absence - exactly the silent failure
+# role-based access is supposed to remove rather than introduce.
+ACCESS_DENIED_CONTEXT = (
+    "The reference set contains material relevant to this question, but all of "
+    "it sits in documents this role is not permitted to see."
+)
+
+
+def relevant_to_role(query_vec, permitted, k: int = None,
+                     floor: float = None) -> tuple[bool, bool]:
+    """(anything relevant at all, the BEST relevant chunk is one role may see).
+
+    Ranks the full corpus for the query. Called only with a query vector that
+    already exists, so this costs one extra dot product over 363 vectors and
+    no additional embedding call.
+
+    The second value tests the top-ranked chunk, not whether any permitted
+    chunk appears anywhere in the results. "Any permitted relevance" was tried
+    first and is too weak: asking as account_manager about the Fernpost
+    onboarding case surfaces the Northwind and Lumen case notes, which clear
+    the floor and are permitted, so the question read as allowed and would have
+    been answered about one client from another client's file. Adjacent
+    material is not the answer. If the best evidence sits somewhere the role
+    cannot look, the honest response is that it cannot look there.
+    """
+    from vector_store import load_index, search_vec
+
+    k = RETRIEVAL_K if k is None else k
+    floor = RELEVANCE_FLOOR if floor is None else floor
+    embeddings, payload, _ = load_index()
+    hits = [h for h in search_vec(query_vec, k, embeddings, payload)
+            if h.score >= floor]
+    if not hits:
+        return False, False
+    if permitted is None:
+        return True, True
+    # search_vec returns hits already sorted by descending score.
+    return True, hits[0].source in permitted
+
+
+def role_restricts_question(question: str, role: str, client=None,
+                            query_vec=None, k: int = None,
+                            floor: float = None) -> bool:
+    """True when the corpus covers this question only where `role` cannot look.
+
+    This is the pre-check that makes the two failure modes distinguishable. It
+    consults the embedded index rather than whichever context was assembled,
+    so it gives the same verdict in direct-context and retrieval mode - the
+    restriction cannot be visible in one mode and silent in the other.
+
+    Returns False when nothing in the corpus is relevant: that is a genuine
+    "not in any document", and must keep producing the ordinary refusal.
+    """
+    permitted = permitted_sources(role)
+    if permitted is None:
+        return False
+    if query_vec is None:
+        from vector_store import embed_query
+        query_vec = embed_query(question, client)
+    anything, mine = relevant_to_role(query_vec, permitted, k, floor)
+    return anything and not mine
+
 
 def retrieve_context(question: str, client=None, k: int = RETRIEVAL_K,
                      floor: float = RELEVANCE_FLOOR,
@@ -429,7 +516,9 @@ def retrieve_context(question: str, client=None, k: int = RETRIEVAL_K,
         keep = [i for i, chunk in enumerate(payload)
                 if chunk["source"] in permitted]
         if not keep:
-            return NO_MATCH_CONTEXT, []
+            # The role can see nothing at all, so every question is a matter
+            # of access rather than coverage. No embedding needed to say so.
+            return ACCESS_DENIED_CONTEXT, []
         embeddings = embeddings[keep]
         payload = [payload[i] for i in keep]
     # query_vec lets a caller reuse an embedding across repeated retrievals of
@@ -437,10 +526,24 @@ def retrieve_context(question: str, client=None, k: int = RETRIEVAL_K,
     # identical and only the cut-off changes.
     if query_vec is None:
         query_vec = embed_query(question, client)
+
+    # The same access rule ask() applies, applied here too, so a direct caller
+    # of retrieve_context cannot get weaker behaviour than the ask() path. If
+    # the best relevant chunk in the whole corpus is one this role cannot see,
+    # returning the role's next-best material would answer a question about one
+    # document out of a different one. Costs a second dot product; no embedding.
+    if permitted is not None:
+        anything, mine = relevant_to_role(query_vec, permitted, k, floor)
+        if anything and not mine:
+            return ACCESS_DENIED_CONTEXT, []
+
     hits = search_vec(query_vec, k, embeddings, payload)
     kept = [h for h in hits if h.score >= floor]
 
     if not kept:
+        # Either nothing is relevant anywhere, or the best match was permitted
+        # but fell below the floor once restricted. Both are genuine absences -
+        # the access case was already returned above.
         return NO_MATCH_CONTEXT, []
 
     # Group by source, best-scoring document first, preserving each
@@ -486,13 +589,45 @@ def ask(question: str, context: str = None, client=None,
     """
     client = client or get_bedrock_client()
 
+    # Access pre-check, before context is assembled and before Claude is
+    # called. It runs in both modes deliberately: a restriction that announces
+    # itself in direct context but stays silent under retrieval is half-built.
+    #
+    # A missing index degrades the message, never the enforcement. Documents
+    # were already filtered by the caller and retrieve_context still restricts
+    # its candidates, so the worst case is the user seeing the ordinary refusal
+    # instead of the access message - not restricted content.
+    query_vec = None
+    if role is not None and permitted_sources(role) is not None:
+        try:
+            from vector_store import embed_query
+
+            query_vec = embed_query(question, client)
+            if role_restricts_question(question, role, query_vec=query_vec):
+                return {
+                    "answer": access_denied_message(role),
+                    "access_denied": True,
+                    "latency_ms": 0,
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "cache_read_tokens": 0,
+                    "cache_write_tokens": 0,
+                    "total_input_tokens": 0,
+                    "retrieved": None,
+                    "retrieved_docs": None,
+                }
+        except FileNotFoundError:
+            query_vec = None
+
     hits = None
     if use_retrieval:
         # Retrieval replaces the caller's context entirely, so the role has to
         # be enforced here too. The caller filtering its document list only
         # protects the direct-context path - without this, turning retrieval on
         # would quietly restore access to the full corpus.
-        context, hits = retrieve_context(question, client, role=role)
+        context, hits = retrieve_context(
+            question, client, query_vec=query_vec, role=role
+        )
     elif context is None:
         raise ValueError("context is required when use_retrieval is False")
 
@@ -521,6 +656,7 @@ def ask(question: str, context: str = None, client=None,
     plain = usage.get("inputTokens") or 0
     return {
         "answer": response["output"]["message"]["content"][0]["text"],
+        "access_denied": False,
         "latency_ms": latency_ms,
         "input_tokens": usage.get("inputTokens"),
         "output_tokens": usage.get("outputTokens"),
