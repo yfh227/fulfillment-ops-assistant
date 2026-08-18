@@ -402,9 +402,10 @@ Pass a path to report on a different database:
 ## Cost and architecture decisions
 
 The reference corpus grew from 7 documents to 23 — **7,291 to 77,339 tokens, a
-10.6x increase in what every call carries**. The assistant passes the whole
-corpus as context on every question; there is no retrieval layer. That decision
-was measured rather than assumed, and the measurements are committed:
+10.6x increase in what every call carries**. By default the assistant passes the
+whole corpus as context on every question rather than retrieving against it —
+retrieval exists but is off by default. That decision was measured rather than
+assumed, and the measurements are committed:
 
 - [baseline_direct_context.md](baseline_direct_context.md) — the uncached "before"
 - [baseline_prompt_caching.md](baseline_prompt_caching.md) — caching measured against it
@@ -482,4 +483,7 @@ on demand:
 EVAL_PROMPT_CACHE=0 ./venv/Scripts/python.exe eval.py
 ```
 
-No retrieval layer has been built.
+**Retrieval is built and tuned, but is not the default** — `use_retrieval`
+defaults to `False`. See *Retrieval, measured* above for the figures and the
+reasoning, and *Role-based access* for how the restriction is enforced on the
+retrieval path as well as on direct context.
