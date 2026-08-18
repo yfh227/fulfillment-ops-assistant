@@ -14,6 +14,8 @@ review.
 | `core.py` | All logic: Bedrock/S3 clients, document loading, the system prompt, `ask()`, and answer analysis. No Streamlit dependency. |
 | `app.py` | Streamlit UI only. |
 | `eval.py` | Evaluation harness — 8 test cases, mechanically scored. |
+| `eval_roles.py` | Role-access harness — 8 questions × 4 roles × 2 modes. Grades access, not answer quality. |
+| `make_auth_config.py` | Generates the gitignored `auth_config.yaml` with bcrypt-hashed test users. |
 | `usage_log.py` | SQLite logging of every question asked. |
 | `stats.py` | Reporting queries and the adoption summary generator. |
 
@@ -141,6 +143,220 @@ changed since.
 
 Keeping the file in the repo is what makes testing a new candidate free: it
 costs no Bedrock calls.
+
+## Role-based access
+
+Until V4 every question saw every document: a billing analyst asking about
+warehouse procedures got the same full corpus as an account manager asking about
+a client dispute. Locking down the S3 bucket is infrastructure security — nobody
+outside the app can read the documents. This is application-level governance:
+what a given *user* may ask for once they are inside.
+
+Login is handled by `streamlit-authenticator`, which stores the signed-in user's
+role in session state. Everything downstream reads a role-filtered document list.
+
+### The three roles
+
+The mapping was derived from each document's own header metadata — `Owner`,
+`Distribution`, `Attendees`, `Negotiated by` — rather than from topic. The full
+derivation, including which assignments are metadata-backed and which are
+judgment calls, is in
+[v4_role_based_access.md](v4_role_based_access.md).
+
+**Billing Analyst — 7 documents**
+
+`00_company_profile.md` · `02_billing_rate_card.md` ·
+`06_billing_dispute_policy.md` · `10_incident_2026-01-22_integration_failure.md` ·
+`11_incident_2026-03-08_mixed_client_inventory.md` ·
+`19_inventory_accuracy_report_2026_q2.md` ·
+`22_inventory_accuracy_report_2026_q3.md`
+
+**Warehouse Lead — 12 documents**
+
+`00_company_profile.md` · `01_receiving_discrepancy_sop.md` ·
+`04_cycle_count_policy.md` · `07_reno_putaway_sop.md` ·
+`08_peak_season_operating_procedures.md` ·
+`09_incident_2025-12-01_wms_outage.md` ·
+`10_incident_2026-01-22_integration_failure.md` ·
+`11_incident_2026-03-08_mixed_client_inventory.md` ·
+`19_inventory_accuracy_report_2026_q2.md` ·
+`20_new_hire_training_certification.md` ·
+`21_putaway_sop_richmond_columbus.md` ·
+`22_inventory_accuracy_report_2026_q3.md`
+
+**Account Manager — 13 documents**
+
+`00_company_profile.md` · `03_escalation_matrix.md` ·
+`05_client_onboarding_checklist.md` · `09_incident_2025-12-01_wms_outage.md` ·
+`10_incident_2026-01-22_integration_failure.md` ·
+`11_incident_2026-03-08_mixed_client_inventory.md` ·
+`12_onboarding_case_enterprise_northwind.md` ·
+`13_onboarding_case_growth_lumen.md` · `15_carrier_management_policy.md` ·
+`16_vendor_and_temporary_labour_policy.md` ·
+`17_enterprise_rate_schedule_northwind.md` ·
+`18_growth_rate_schedule_lumen.md` ·
+`20_new_hire_training_certification.md`
+
+**admin — all 23.** An all-access identity for regression runs, not a content
+role; the mapping is not defined against it.
+
+Three properties are deliberate rather than incidental:
+
+- **`00_company_profile.md` is universal** — the only document all three roles
+  share by design.
+- **`14_onboarding_case_standard_fernpost.md` belongs to no role.** The document
+  states it has no named Account Manager (standard tier, pooled queue), so
+  assigning it to Account Manager would assert something the document denies.
+  It is visible only to admin, and is the test case where access denial and
+  genuine absence can be told apart with certainty.
+- **Billing cannot see either rate schedule.** `17` and `18` record who
+  negotiated them — Senior Account Manager and Account Manager — and that stated
+  ownership governs, not the fact that the content is rate data. A billing
+  analyst asking about negotiated client rates is denied. This is a decision,
+  not an oversight.
+
+An unrecognised role **fails closed**: `get_documents_for_role()` returns the
+empty set, so a typo'd or renamed role sees nothing rather than everything.
+
+### Enforcement holds in both modes
+
+Direct context and retrieval are restricted separately, because they draw from
+different places — the document list and the embedded index. Filtering only the
+first would leak the whole corpus whenever `use_retrieval` is `True`.
+
+The retrieval candidate set is cut **before** ranking, never after.
+Post-filtering would leave the full corpus competing for the K slots, so a role
+would silently receive fewer than K chunks whenever a document it cannot see
+outranked one it can — the restriction would look correct while quietly
+degrading recall.
+
+### Access denial vs. genuine "not in any document"
+
+These are different situations and must not read the same way:
+
+| Situation | Response |
+|---|---|
+| The corpus covers this, but not in your documents | *"That's outside what a Billing Analyst has access to in this system."* |
+| The corpus does not cover this at all | The ordinary "I don't know" refusal |
+
+A pre-check in `ask()` decides which, before any context is assembled and before
+Claude is called — so a denial costs no model call. It consults the embedded
+index rather than whichever context was assembled, which is why it gives the
+same verdict in both modes.
+
+**The rule: deny when the *best* relevant evidence is forbidden, not when *all*
+of it is.** An earlier version denied only when nothing permitted was relevant,
+and that was too weak — an account manager asking about the Fernpost onboarding
+case surfaced the Northwind and Lumen case notes, which are permitted and clear
+the floor, so the question read as allowed and would have been answered about
+one client out of another client's file. Adjacent material is not the answer.
+
+#### `DENIAL_FLOOR = 0.48`
+
+Denial needs a higher bar than retrieval. `RELEVANCE_FLOOR` (0.30) answers *"is
+this chunk worth putting in context"*, which is the wrong question for access —
+*"does the answer actually live here"*. Reusing it told a billing analyst asking
+about parental leave, absent from the corpus entirely, that the topic was outside
+their access, because `16_vendor_and_temporary_labour_policy.md` scored 0.4524 on
+the word "labour" alone. Claiming information exists and is withheld, when it
+does not exist, is its own kind of dishonesty.
+
+Measured over 10 genuinely-absent questions and the 22 role/question denial
+decisions in `eval_roles.py`:
+
+| | Top-1 similarity |
+|---|---|
+| Absent from corpus | 6 of 10 clear nothing at all; the 4 that clear `RELEVANCE_FLOOR` peak at **0.4524** |
+| *gap: 0.0524* | |
+| True denials | **0.5048** (standard-tier rate card) rising to 0.7130 (escalation matrix) |
+
+0.48 sits near the centre of that gap: 0.0276 above the highest score any absent
+question reached, 0.0248 below the lowest a real denial needed. Same derivation
+style as `RELEVANCE_FLOOR` and `REFUSAL_MAX_WORDS` — a measured separation, not
+an intuition.
+
+**This threshold governs which message is shown, never what is retrievable.**
+Document filtering in `get_documents_for_role()` and `retrieve_context()` is
+unconditional in both modes and does not consult `DENIAL_FLOOR` at all. A
+misjudgement here costs accuracy of explanation, never access.
+
+### Verification
+
+```bash
+./venv/Scripts/python.exe eval_roles.py --mode both
+```
+
+`eval_roles.py` grades *access*, where `eval.py` grades answer quality. Expected
+outcomes are written out per role rather than derived from `ROLE_DOCUMENTS`, so a
+wrong mapping cannot satisfy the test by agreeing with itself.
+
+**64/64 passing** — 8 questions × 4 roles × 2 modes, with real question
+embeddings and real Claude calls:
+
+- **Zero restricted-document citations** across all 64 runs.
+- **Denials short-circuit before any model call** — 34 calls for 64 runs; every
+  denial returned the exact expected message with no Bedrock request.
+- The Fernpost question is denied for all three content roles and answered for
+  admin.
+- A genuinely-absent question refuses for every role, admin included — never the
+  access message.
+
+One eval-design note worth keeping: `ANSWER` cases are graded on access
+(reached the model, cited nothing restricted), not on completeness. Under
+retrieval the model self-reports `REFUSED: yes` while answering substantively —
+measured at 4 of 5 runs on the Reno putaway question against 0 of 5 in direct
+context, because retrieval shows it fragments of a long SOP rather than the whole
+document. Failing those would be grading the known direct-vs-retrieval difference
+as an access bug.
+
+### Setup
+
+Two generated files are gitignored and absent from a fresh checkout.
+
+**`auth_config.yaml`** holds the bcrypt-hashed credentials. Generate it:
+
+```bash
+./venv/Scripts/python.exe make_auth_config.py
+```
+
+That writes one test user per role plus an all-access admin, prints the random
+passwords **once**, and stores them nowhere in plaintext. Lost passwords mean
+re-running with `--force`, which mints new ones. The app refuses to start without
+this file and says so.
+
+**`vector_index.npz`** is built by `embed_chunks.py`. The access pre-check now
+depends on it in **both** modes, not just retrieval — direct context previously
+made no embedding call and now makes one per question.
+
+**Without the index, enforcement holds but the explanation degrades.** Document
+filtering has already happened and `retrieve_context()` still restricts its
+candidates, so no restricted content is reachable. What is lost is the *message*:
+a restricted question falls back to the ordinary "I don't know" refusal instead
+of the access notice, which is exactly the silent failure this part exists to
+remove. Rebuild the index rather than run without it.
+
+### Known-marginal case
+
+`eval.py`'s **"Mixed coverage"** case fails intermittently on the `REFUSED:`
+self-report. The model answers the documented half, explicitly states the late
+fee is not covered, flags for review — then self-reports `REFUSED: no`, where
+rule 5 specifies `yes`.
+
+**This is independent of V4 on structural grounds.** `eval.py:201` calls `ask()`
+with no `role` argument, so `role=None`, so the access pre-check guard is false
+and `retrieve_context()` is unrestricted. The code path is identical before and
+after V4 — the pre-V4 `ask()` has no `role` parameter at all.
+
+It tracks answer length, consistent with `REFUSAL_MAX_WORDS`: observed passing
+runs were 68–113 words, the failing run 200+ with extensive multi-document
+citation.
+
+**Not empirically confirmed.** A 5-run check at the pre-V4 commit `ae347dc`
+returned 0 failures in 5, against 1 failure in 6 observations on `main` — but 5
+samples cannot detect a roughly 1-in-6 event. If the rate were identical at both
+commits, the chance of seeing zero failures in 5 runs is (5/6)⁵ ≈ 40%. That check
+discriminated nothing, and is reported here as inconclusive rather than as
+support. Settling it empirically would need roughly 25–30 samples per commit.
 
 ## Usage logging
 
