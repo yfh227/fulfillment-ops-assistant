@@ -86,6 +86,69 @@ WHERE feedback IS NOT NULL
 """
 
 
+# --------------------------------------------------------------------------
+# Agent runs (V5)
+#
+# Separate from the `usage` queries above because an agent run is a bounded
+# loop of turns and tool calls, not one question and one answer. Reported in
+# its own sections rather than averaged in with asks, which would make both
+# sets of figures harder to read and neither more accurate.
+# --------------------------------------------------------------------------
+
+AGENT_VOLUME_BY_DAY = """
+SELECT substr(timestamp, 1, 10)                        AS day,
+       COUNT(*)                                        AS runs,
+       COALESCE(SUM(input_tokens), 0)                  AS input_tokens,
+       COALESCE(SUM(output_tokens), 0)                 AS output_tokens
+FROM agent_run
+GROUP BY day
+ORDER BY day
+"""
+
+AGENT_GUARDRAIL = """
+SELECT COUNT(*)                                              AS runs,
+       COALESCE(SUM(requires_approval), 0)                   AS approvals,
+       COALESCE(SUM(hit_turn_cap), 0)                        AS turn_caps,
+       COALESCE(SUM(CASE WHEN denied_tools IS NOT NULL THEN 1 END), 0) AS with_denials,
+       ROUND(AVG(turns), 2)                                  AS avg_turns,
+       ROUND(AVG(latency_ms), 0)                             AS avg_ms
+FROM agent_run
+WHERE error IS NULL
+"""
+
+AGENT_BY_ROLE = """
+SELECT role,
+       COUNT(*)                            AS runs,
+       COALESCE(SUM(requires_approval), 0) AS approvals
+FROM agent_run
+WHERE error IS NULL
+GROUP BY role
+ORDER BY runs DESC, role ASC
+"""
+
+TOOL_USAGE = """
+SELECT tool,
+       COUNT(*)                                        AS calls,
+       COALESCE(SUM(denied), 0)                        AS denied
+FROM agent_step
+WHERE kind = 'tool_call' AND tool IS NOT NULL
+GROUP BY tool
+ORDER BY calls DESC, tool ASC
+"""
+
+AGENT_ERROR_COUNT = """
+SELECT COUNT(*) AS errors FROM agent_run WHERE error IS NOT NULL
+"""
+
+
+def _table_exists(conn: sqlite3.Connection, name: str) -> bool:
+    """Databases written before V5 have no agent tables; report around them."""
+    return bool(conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (name,),
+    ).fetchone())
+
+
 def connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
@@ -188,6 +251,47 @@ def report(db_path: Path = DB_PATH) -> None:
         print(f"with feedback : {f['with_feedback']}")
         print(f"thumbs up     : {f['thumbs_up']}")
         print(f"thumbs down   : {f['thumbs_down']}")
+
+        if not _table_exists(conn, "agent_run"):
+            print()
+            return
+
+        _heading("AGENT RUNS")
+        rows = _rows(conn, AGENT_VOLUME_BY_DAY)
+        if not rows:
+            print("(no agent runs logged yet)")
+        else:
+            print(f"{'DAY':<12}{'RUNS':>7}{'INPUT':>10}{'OUTPUT':>9}")
+            for r in rows:
+                print(f"{r['day']:<12}{r['runs']:>7}{r['input_tokens']:>10,}"
+                      f"{r['output_tokens']:>9,}")
+
+            a = _rows(conn, AGENT_GUARDRAIL)[0]
+            print()
+            print(f"runs measured : {a['runs']}")
+            print(f"needing approval: {a['approvals']}  "
+                  f"({_pct(a['approvals'], a['runs'])}%)")
+            print(f"with a denied tool: {a['with_denials']}  "
+                  f"({_pct(a['with_denials'], a['runs'])}%)")
+            print(f"hit turn cap  : {a['turn_caps']}")
+            print(f"avg turns     : {a['avg_turns']}")
+            print(f"avg latency   : {a['avg_ms']:,.0f} ms" if a["avg_ms"]
+                  else "avg latency   : -")
+            print(f"error rows    : {_rows(conn, AGENT_ERROR_COUNT)[0]['errors']}")
+
+            _heading("AGENT RUNS BY ROLE")
+            for r in _rows(conn, AGENT_BY_ROLE):
+                print(f"{r['role']:<18}{r['runs']:>5} runs   "
+                      f"{r['approvals']:>3} needing approval")
+
+        _heading("TOOL CALLS")
+        rows = _rows(conn, TOOL_USAGE)
+        if not rows:
+            print("(no tool calls recorded yet)")
+        else:
+            print(f"{'TOOL':<22}{'CALLS':>7}{'DENIED':>8}")
+            for r in rows:
+                print(f"{r['tool']:<22}{r['calls']:>7}{r['denied']:>8}")
         print()
 
 

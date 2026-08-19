@@ -320,7 +320,7 @@ def run_agent(question: str, role: str, client=None,
     client = client or core.get_bedrock_client()
     messages = [{"role": "user", "content": [{"text": question}]}]
 
-    calls, denials = [], []
+    calls, denials, steps = [], [], []
     tokens_in = tokens_out = 0
     stop_reason = None
     start = time.perf_counter()
@@ -340,6 +340,15 @@ def run_agent(question: str, role: str, client=None,
         messages.append(out)
         stop_reason = response["stopReason"]
 
+        # The model's own text for this turn - what it concluded before deciding
+        # to call a tool, or its final answer. Recorded as a reasoning step so a
+        # run can be reconstructed later rather than only its tool calls.
+        reasoning = "".join(c.get("text", "") for c in out["content"]).strip()
+        if reasoning:
+            steps.append({"turn": turn + 1, "kind": "reasoning",
+                          "text": reasoning, "tool": None, "input": None,
+                          "denied": None, "status": None})
+
         if stop_reason != "tool_use":
             break
 
@@ -349,14 +358,19 @@ def run_agent(question: str, role: str, client=None,
                 continue
             use = block["toolUse"]
             payload, denied = _execute(use["name"], use.get("input") or {}, role)
+            status = "error" if denied or "error" in payload else "success"
             calls.append({"tool": use["name"], "input": use.get("input") or {},
                           "denied": denied})
+            steps.append({"turn": turn + 1, "kind": "tool_call",
+                          "text": None, "tool": use["name"],
+                          "input": use.get("input") or {},
+                          "denied": denied, "status": status})
             if denied:
                 denials.append(use["name"])
             results.append({"toolResult": {
                 "toolUseId": use["toolUseId"],
                 "content": [{"json": payload}],
-                "status": "error" if denied or "error" in payload else "success",
+                "status": status,
             }})
         messages.append({"role": "user", "content": results})
     else:
@@ -365,7 +379,9 @@ def run_agent(question: str, role: str, client=None,
             "answer": ("Stopped after the maximum number of tool-calling turns "
                        "without reaching a conclusion."),
             "role": role,
+            "question": question,
             "tool_calls": calls,
+            "steps": steps,
             "denied_tools": denials,
             "requires_approval": False,
             "hit_turn_cap": True,
@@ -380,7 +396,9 @@ def run_agent(question: str, role: str, client=None,
     return {
         "answer": answer,
         "role": role,
+        "question": question,
         "tool_calls": calls,
+        "steps": steps,
         "denied_tools": denials,
         "requires_approval": any(
             c["tool"] == TOOL_DRAFT_ESCALATION and not c["denied"] for c in calls),
@@ -410,7 +428,17 @@ if __name__ == "__main__":
     question = (" ".join(sys.argv[2:]) if len(sys.argv) > 2
                 else "Order ORD-4417 is stuck. What's going on and what should we do?")
 
-    result = run_agent(question, role, bedrock)
+    # run_agent stays pure and the caller logs, matching core.ask/app.py.
+    import usage_log
+
+    try:
+        result = run_agent(question, role, bedrock)
+    except Exception as exc:
+        usage_log.log_agent_run(question=question, role=role, error=exc)
+        raise
+
+    run_id = usage_log.log_agent_run(result)
+    print(f"logged as run    : {run_id}")
     print(f"role             : {result['role']}")
     print(f"turns            : {result['turns']}  stop: {result['stop_reason']}")
     print(f"tool calls       : "
