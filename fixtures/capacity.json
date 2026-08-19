@@ -1,0 +1,35 @@
+[
+  {
+    "facility": "Columbus",
+    "total_positions": 12000,
+    "occupied_positions": 11460,
+    "utilisation_pct": 95.5,
+    "staged_outbound_pallets": 310,
+    "inbound_scheduled_pallets": 480,
+    "overflow_available": false,
+    "status": "CRITICAL",
+    "note": "Above the 90% threshold with 480 inbound pallets scheduled and no overflow."
+  },
+  {
+    "facility": "Richmond",
+    "total_positions": 9000,
+    "occupied_positions": 6120,
+    "utilisation_pct": 68.0,
+    "staged_outbound_pallets": 145,
+    "inbound_scheduled_pallets": 260,
+    "overflow_available": true,
+    "status": "OK",
+    "note": "Comfortable headroom. Can absorb diverted inbound."
+  },
+  {
+    "facility": "Reno",
+    "total_positions": 7500,
+    "occupied_positions": 6675,
+    "utilisation_pct": 89.0,
+    "staged_outbound_pallets": 402,
+    "inbound_scheduled_pallets": 190,
+    "overflow_available": true,
+    "status": "TIGHT",
+    "note": "Just under threshold. Staged outbound is unusually high and ageing."
+  }
+]

@@ -1,0 +1,62 @@
+[
+  {
+    "client": "Northwind Provisions",
+    "tier": "Enterprise",
+    "contracted_storage_rate": 0.78,
+    "contracted_pick_rate": 1.20,
+    "effective": "2025-10-17",
+    "term_months": 36,
+    "rate_review": "Quarterly",
+    "negotiated_by": "VP Operations, Senior Account Manager"
+  },
+  {
+    "client": "Lumen Bath Co.",
+    "tier": "Growth",
+    "contracted_storage_rate": 1.10,
+    "contracted_pick_rate": 1.75,
+    "effective": "2026-03-04",
+    "term_months": 24,
+    "rate_review": "Quarterly",
+    "negotiated_by": "Account Manager, approved by Client Operations Manager"
+  },
+  {
+    "client": "Alder & Vine",
+    "tier": "Enterprise",
+    "contracted_storage_rate": 0.88,
+    "contracted_pick_rate": 1.55,
+    "effective": "2025-06-01",
+    "term_months": 36,
+    "rate_review": "Quarterly",
+    "negotiated_by": "VP Operations, Senior Account Manager"
+  },
+  {
+    "client": "Halden Goods",
+    "tier": "Growth",
+    "contracted_storage_rate": 1.10,
+    "contracted_pick_rate": 1.75,
+    "effective": "2026-01-20",
+    "term_months": 24,
+    "rate_review": "Quarterly",
+    "negotiated_by": "Account Manager"
+  },
+  {
+    "client": "Peakline Outdoor",
+    "tier": "Growth",
+    "contracted_storage_rate": 1.10,
+    "contracted_pick_rate": 1.75,
+    "effective": "2026-02-11",
+    "term_months": 24,
+    "rate_review": "Quarterly",
+    "negotiated_by": "Account Manager"
+  },
+  {
+    "client": "Fernpost Paper",
+    "tier": "Standard",
+    "contracted_storage_rate": 1.25,
+    "contracted_pick_rate": 2.10,
+    "effective": "2026-05-04",
+    "term_months": 12,
+    "rate_review": "Annual",
+    "negotiated_by": "Standard tier - published rate card, not negotiated"
+  }
+]
