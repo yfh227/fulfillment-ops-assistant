@@ -1,0 +1,112 @@
+[
+  {
+    "sku": "MER-8821",
+    "description": "Northwind shelf-stable case, 12ct",
+    "facility": "Columbus",
+    "on_hand": 62,
+    "allocated": 40,
+    "available": 22,
+    "reorder_point": 120,
+    "last_count": "2026-08-10",
+    "status": "BELOW_REORDER"
+  },
+  {
+    "sku": "MER-8834",
+    "description": "Northwind bulk pallet unit",
+    "facility": "Reno",
+    "on_hand": 480,
+    "allocated": 400,
+    "available": 80,
+    "reorder_point": 150,
+    "last_count": "2026-08-14",
+    "status": "OK"
+  },
+  {
+    "sku": "AWV-3302",
+    "description": "Alder & Vine gift set, boxed",
+    "facility": "Columbus",
+    "on_hand": 210,
+    "allocated": 60,
+    "available": 150,
+    "reorder_point": 80,
+    "last_count": "2026-08-12",
+    "status": "OK"
+  },
+  {
+    "sku": "AWV-3315",
+    "description": "Alder & Vine seasonal carton",
+    "facility": "Columbus",
+    "on_hand": 640,
+    "allocated": 220,
+    "available": 420,
+    "reorder_point": 200,
+    "last_count": "2026-08-09",
+    "status": "OK"
+  },
+  {
+    "sku": "LBC-7710",
+    "description": "Lumen bath towel set",
+    "facility": "Richmond",
+    "on_hand": 310,
+    "allocated": 12,
+    "available": 298,
+    "reorder_point": 100,
+    "last_count": "2026-08-13",
+    "status": "OK"
+  },
+  {
+    "sku": "LBC-7725",
+    "description": "Lumen vanity organiser",
+    "facility": "Richmond",
+    "on_hand": 155,
+    "allocated": 45,
+    "available": 110,
+    "reorder_point": 60,
+    "last_count": "2026-08-13",
+    "status": "OK"
+  },
+  {
+    "sku": "HAL-2205",
+    "description": "Halden enamel mug, 4pk",
+    "facility": "Reno",
+    "on_hand": 75,
+    "allocated": 40,
+    "available": 35,
+    "reorder_point": 90,
+    "last_count": "2026-08-15",
+    "status": "BELOW_REORDER"
+  },
+  {
+    "sku": "PKL-9010",
+    "description": "Peakline trail lantern",
+    "facility": "Reno",
+    "on_hand": 96,
+    "allocated": 18,
+    "available": 78,
+    "reorder_point": 40,
+    "last_count": "2026-08-11",
+    "status": "OK"
+  },
+  {
+    "sku": "FPP-1140",
+    "description": "Fernpost A4 ream, 500 sheet",
+    "facility": "Columbus",
+    "on_hand": 1240,
+    "allocated": 30,
+    "available": 1210,
+    "reorder_point": 400,
+    "last_count": "2026-08-14",
+    "status": "OK"
+  },
+  {
+    "sku": "FPP-1155",
+    "description": "Fernpost card stock, boxed",
+    "facility": "Columbus",
+    "on_hand": 420,
+    "allocated": 0,
+    "available": 420,
+    "reorder_point": 150,
+    "last_count": "2026-08-14",
+    "status": "OK"
+  }
+]
