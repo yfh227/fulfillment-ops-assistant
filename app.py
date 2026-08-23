@@ -5,6 +5,7 @@ import streamlit_authenticator as stauth
 import yaml
 
 import core
+import make_auth_config
 import stats
 import usage_log
 
@@ -41,6 +42,37 @@ def build_authenticator() -> stauth.Authenticate:
     )
 
 
+def auth_secrets() -> tuple:
+    """Demo credentials supplied through Streamlit secrets.
+
+    Streamlit Community Cloud rebuilds from a clean checkout and has no shell,
+    so make_auth_config.py can never be run against a deployment. Secrets are
+    the one channel that both survives a rebuild and can be set without one,
+    which is why they are the source here rather than a committed file.
+
+    Expected shape, set locally in .streamlit/secrets.toml or in the Cloud
+    dashboard under Settings -> Secrets:
+
+        [auth]
+        billing = "..."
+        warehouse = "..."
+        account = "..."
+        admin = "..."
+        cookie_key = "..."   # optional; keeps sessions alive across restarts
+
+    Returns (passwords, cookie_key), either of which may be None.
+    """
+    # Deliberately broad: a missing secrets file, a missing section and a
+    # malformed one should all degrade to "no secrets supplied" rather than
+    # take the app down before the login gate renders.
+    try:
+        section = st.secrets["auth"]
+    except Exception:
+        return None, None
+    passwords = {u: section.get(u) for u in make_auth_config.USERS}
+    return passwords, section.get("cookie_key")
+
+
 def current_role() -> str:
     """The role this session acts under.
 
@@ -51,6 +83,36 @@ def current_role() -> str:
     roles = st.session_state.get("roles") or []
     return roles[0] if roles else ""
 
+
+# auth_config.yaml is gitignored, so a fresh deploy never has one and there is
+# no shell to run make_auth_config.py in. Build it here instead, on every cold
+# start, from whatever credentials the environment supplies.
+try:
+    auth_source = make_auth_config.ensure_config(AUTH_CONFIG_PATH, *auth_secrets())
+except Exception as e:
+    st.error(f"Could not create {AUTH_CONFIG_PATH.name}: {e}")
+    st.stop()
+
+if auth_source == "missing":
+    # Checked before build_authenticator so the message is this one, not a
+    # bare FileNotFoundError. Nothing was written, so this reappears on every
+    # rerun rather than vanishing once a file exists.
+    #
+    # No published-default fallback on purpose: this login gates Bedrock calls
+    # billed to whoever deployed it, so a publicly known password on a public
+    # URL is an open tab on their AWS account.
+    st.error(
+        f"No `{AUTH_CONFIG_PATH.name}` and no `[auth]` section in secrets, so "
+        "there are no credentials to log in with. Add the section below under "
+        "**Settings → Secrets**, then reboot the app."
+    )
+    st.code(
+        "[auth]\n"
+        + "\n".join(f'{u} = "choose-a-password"' for u in make_auth_config.USERS)
+        + '\ncookie_key = "any-long-random-string"',
+        language="toml",
+    )
+    st.stop()
 
 try:
     authenticator = build_authenticator()

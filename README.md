@@ -324,8 +324,35 @@ Two generated files are gitignored and absent from a fresh checkout.
 
 That writes one test user per role plus an all-access admin, prints the random
 passwords **once**, and stores them nowhere in plaintext. Lost passwords mean
-re-running with `--force`, which mints new ones. The app refuses to start without
-this file and says so.
+re-running with `--force`, which mints new ones.
+
+#### Deployed environments have no shell
+
+Streamlit Community Cloud rebuilds from a clean checkout on every push, so the
+gitignored config is never there — and there is no shell to run the script in.
+`app.py` therefore builds `auth_config.yaml` itself on cold start, from an
+`[auth]` section in secrets (**Settings → Secrets** in the Cloud dashboard,
+`.streamlit/secrets.toml` locally):
+
+```toml
+[auth]
+billing = "..."
+warehouse = "..."
+account = "..."
+admin = "..."
+cookie_key = "..."   # optional; without it sessions end when the app restarts
+```
+
+Precedence is: an existing file wins, then secrets, then nothing. That last case
+prints an actionable error naming the missing section and **writes nothing**.
+
+Writing a config with invented passwords would be worse than failing: the login
+would render but open for nobody, and since Streamlit reruns the whole script on
+every interaction, the *next* rerun would find the file, report it as fine, and
+hide the problem after showing the warning once. There is deliberately no
+published-default password either — this login gates Bedrock calls billed to
+whoever deployed the app, so a known password on a public URL is an open tab on
+their AWS account.
 
 **`vector_index.npz`** is built by `embed_chunks.py`. The access pre-check now
 depends on it in **both** modes, not just retrieval — direct context previously
@@ -337,6 +364,15 @@ candidates, so no restricted content is reachable. What is lost is the *message*
 a restricted question falls back to the ordinary "I don't know" refusal instead
 of the access notice, which is exactly the silent failure this part exists to
 remove. Rebuild the index rather than run without it.
+
+It is gitignored and nothing regenerates it, so **a Cloud deployment is always
+running without it** — the app boots and enforces correctly, but every restricted
+question shows the generic refusal rather than the access notice, which is the
+one behaviour the deployment is meant to demonstrate. Unlike `auth_config.yaml`
+this cannot be solved with a secret: rebuilding it costs 363 Bedrock embedding
+calls, which is not something to do on every cold start. The options are to
+commit the file (1.5 MB, and it embeds the corpus text) or to accept the
+degraded message in the hosted demo.
 
 ### Known-marginal cases
 

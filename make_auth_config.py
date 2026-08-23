@@ -62,6 +62,67 @@ def random_password(length: int = 16) -> str:
     return "".join(secrets.choice(ALPHABET) for _ in range(length))
 
 
+def build_config(passwords: dict, cookie_key: str = None) -> dict:
+    """Assemble the config dict from a username -> plaintext mapping.
+
+    Split out of main() so the app can build the same structure at startup
+    without shelling out to this script - Streamlit Community Cloud has no
+    shell, so the manual step this file documents is impossible there.
+    """
+    missing = sorted(set(USERS) - {u for u, p in passwords.items() if p})
+    if missing:
+        raise ValueError(f"no password supplied for: {', '.join(missing)}")
+
+    credentials = {
+        "usernames": {
+            username: {**fields, "password": passwords[username]}
+            for username, fields in USERS.items()
+        }
+    }
+    # hash_passwords replaces each plaintext password with its bcrypt hash.
+    credentials = stauth.Hasher.hash_passwords(credentials)
+
+    return {
+        "cookie": {
+            "name": "fulfillment_ops_auth",
+            # A fresh key per container is fine - it only invalidates cookies
+            # issued by a previous container, which are gone anyway. Supplying
+            # one keeps sessions alive across restarts.
+            "key": cookie_key or secrets.token_urlsafe(32),
+            "expiry_days": 1,
+        },
+        "credentials": credentials,
+    }
+
+
+def write_config(config: dict, path: Path = CONFIG_PATH) -> None:
+    with open(path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(config, f, sort_keys=False, default_flow_style=False)
+
+
+def ensure_config(path: Path = CONFIG_PATH, passwords: dict = None,
+                  cookie_key: str = None) -> str:
+    """Create the config if it is absent, but only from usable credentials.
+
+    "existing" - file was already there, nothing written
+    "created"  - written from the caller's passwords
+    "missing"  - no complete set of passwords supplied; nothing written
+
+    Deliberately does NOT invent random passwords as a fallback. Writing a
+    config whose passwords are printed nowhere produces a login form that
+    cannot be opened, and - because Streamlit reruns the whole script on every
+    interaction - the very next rerun would see the file, report "existing",
+    and hide the problem. Returning "missing" without writing keeps the failure
+    visible on every rerun instead of only the first.
+    """
+    if path.exists():
+        return "existing"
+    if not (passwords and all(passwords.get(u) for u in USERS)):
+        return "missing"
+    write_config(build_config(passwords, cookie_key), path)
+    return "created"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -76,27 +137,7 @@ def main() -> int:
         return 1
 
     plaintext = {username: random_password() for username in USERS}
-
-    credentials = {
-        "usernames": {
-            username: {**fields, "password": plaintext[username]}
-            for username, fields in USERS.items()
-        }
-    }
-    # hash_passwords replaces each plaintext password with its bcrypt hash.
-    credentials = stauth.Hasher.hash_passwords(credentials)
-
-    config = {
-        "cookie": {
-            "name": "fulfillment_ops_auth",
-            "key": secrets.token_urlsafe(32),
-            "expiry_days": 1,
-        },
-        "credentials": credentials,
-    }
-
-    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        yaml.safe_dump(config, f, sort_keys=False, default_flow_style=False)
+    write_config(build_config(plaintext), CONFIG_PATH)
 
     print(f"Wrote {CONFIG_PATH.name} with {len(USERS)} users.\n")
     print("Test credentials - shown once, not stored in plaintext anywhere:\n")
