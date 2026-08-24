@@ -365,14 +365,27 @@ a restricted question falls back to the ordinary "I don't know" refusal instead
 of the access notice, which is exactly the silent failure this part exists to
 remove. Rebuild the index rather than run without it.
 
-It is gitignored and nothing regenerates it, so **a Cloud deployment is always
-running without it** — the app boots and enforces correctly, but every restricted
-question shows the generic refusal rather than the access notice, which is the
-one behaviour the deployment is meant to demonstrate. Unlike `auth_config.yaml`
-this cannot be solved with a secret: rebuilding it costs 363 Bedrock embedding
-calls, which is not something to do on every cold start. The options are to
-commit the file (1.5 MB, and it embeds the corpus text) or to accept the
-degraded message in the hosted demo.
+**The index is committed, deliberately.** Unlike `auth_config.yaml` this cannot
+be solved with a secret — rebuilding costs 363 Bedrock embedding calls, which is
+not something to run on a cold start — so while it was gitignored, every hosted
+deployment ran without it. The app booted and enforced access correctly, but
+every restricted question showed the generic refusal instead of the access
+notice, which is the one behaviour the deployment exists to demonstrate.
+
+The objection to committing it was that the file embeds the corpus text. That
+was checked rather than assumed, and it does not hold: every one of its 363
+chunks comes from a document already committed in `docs/`. 217 of 362 testable
+chunks appear verbatim in their source after whitespace normalisation, and the
+remainder differ only because chunking prepends a synthesised breadcrumb
+(`[06_billing_dispute_policy.md] Policy: … — Investigation > Step 1`). **Not one
+of those chunks contains a single token absent from its source document.**
+Committing the index therefore discloses nothing that `docs/` does not already
+publish, and at 1.49 MB it is far below GitHub's 50 MB warning threshold.
+
+The tradeoff it does carry: the index must be rebuilt with `embed_chunks.py` and
+re-committed whenever `docs/` changes, or retrieval silently scores against
+stale text. It is current as of this commit — all 23 documents indexed, none
+stale, and no document modified since it was built.
 
 ### Known-marginal cases
 

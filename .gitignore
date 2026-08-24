@@ -5,4 +5,7 @@ __pycache__/
 .claude/settings.local.json
 auth_config.yaml
 usage.db
-vector_index.npz
+# vector_index.npz is deliberately NOT ignored. A hosted deployment has no shell
+# to rebuild it in, and without it every restricted question degrades to the
+# generic refusal instead of the access notice. It embeds only text already
+# committed in docs/ - see the README's deployment section.
