@@ -7,6 +7,22 @@ documents, cite the file it drew from, say "I don't know" when the documents do
 not cover a question, and flag anything client-facing or money-related for human
 review.
 
+## Live demo
+
+**https://nfuqwbwt4zabt2tpxwznvo.streamlit.app/**
+
+Login is required — the app gates Bedrock calls billed to the deployer's AWS
+account, so there is deliberately no published default password. See
+[Deployed environments have no shell](#deployed-environments-have-no-shell) for
+how credentials reach a hosted deployment.
+
+Four accounts exist, one per role plus an all-access admin. Signing in as
+`billing` should report **7 of 23 documents** visible; `warehouse` 12, `account`
+13, `admin` all 23. Asking that account something outside its scope — a Billing
+Analyst asking about Reno putaway, say — should return *"That's outside what a
+Billing Analyst has access to in this system"* rather than a generic "I don't
+know". Those two behaviours are the point of the demo.
+
 ## Layout
 
 | File | Purpose |
