@@ -101,6 +101,11 @@ ALL_TOOLS = (TOOL_ORDER_STATUS, TOOL_CHECK_INVENTORY, TOOL_DRAFT_ESCALATION,
 # --------------------------------------------------------------------------
 
 ROLE_TOOLS = {
+    # The public tier gets no tools at all. Tools reach live operational
+    # records - orders, invoices, stock, facility positions - and none of that
+    # belongs to an anonymous visitor. Stated explicitly rather than left to
+    # permitted_tools' fail-closed default, so the eval can assert it.
+    core.ROLE_PUBLIC: frozenset(),
     core.ROLE_WAREHOUSE: frozenset({
         TOOL_ORDER_STATUS, TOOL_CHECK_INVENTORY, TOOL_CHECK_CAPACITY,
         TOOL_DRAFT_ESCALATION}),

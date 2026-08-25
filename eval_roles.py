@@ -27,6 +27,7 @@ from pathlib import Path
 import agent
 import ops_data
 from core import (
+    ROLE_PUBLIC,
     CONTENT_ROLES,
     ROLE_ACCOUNT,
     ROLE_ADMIN,
@@ -54,7 +55,7 @@ QUESTIONS = [
         "source": "06_billing_dispute_policy.md (billing only)",
         "question": "How long does a client have to raise a billing dispute, "
                     "and what happens if they miss that window?",
-        "expect": {ROLE_BILLING: ANSWER, ROLE_WAREHOUSE: DENIED,
+        "expect": {ROLE_PUBLIC: DENIED, ROLE_BILLING: ANSWER, ROLE_WAREHOUSE: DENIED,
                    ROLE_ACCOUNT: DENIED, ROLE_ADMIN: ANSWER},
     },
     {
@@ -62,7 +63,7 @@ QUESTIONS = [
         "source": "04_cycle_count_policy.md (warehouse only)",
         "question": "How frequently must cycle counts be performed, and who "
                     "signs off on a variance?",
-        "expect": {ROLE_BILLING: DENIED, ROLE_WAREHOUSE: ANSWER,
+        "expect": {ROLE_PUBLIC: DENIED, ROLE_BILLING: DENIED, ROLE_WAREHOUSE: ANSWER,
                    ROLE_ACCOUNT: DENIED, ROLE_ADMIN: ANSWER},
     },
     {
@@ -70,14 +71,14 @@ QUESTIONS = [
         "source": "03_escalation_matrix.md (account only)",
         "question": "What are the escalation tiers and the response time "
                     "expected at each one?",
-        "expect": {ROLE_BILLING: DENIED, ROLE_WAREHOUSE: DENIED,
+        "expect": {ROLE_PUBLIC: DENIED, ROLE_BILLING: DENIED, ROLE_WAREHOUSE: DENIED,
                    ROLE_ACCOUNT: ANSWER, ROLE_ADMIN: ANSWER},
     },
     {
         "name": "reno putaway process",
         "source": "07_reno_putaway_sop.md (warehouse only)",
         "question": "What is the putaway process at the Reno facility?",
-        "expect": {ROLE_BILLING: DENIED, ROLE_WAREHOUSE: ANSWER,
+        "expect": {ROLE_PUBLIC: DENIED, ROLE_BILLING: DENIED, ROLE_WAREHOUSE: ANSWER,
                    ROLE_ACCOUNT: DENIED, ROLE_ADMIN: ANSWER},
     },
     {
@@ -85,7 +86,7 @@ QUESTIONS = [
         "source": "17_enterprise_rate_schedule_northwind.md (account only)",
         "question": "What storage and pick rates were negotiated for Northwind "
                     "Provisions?",
-        "expect": {ROLE_BILLING: DENIED, ROLE_WAREHOUSE: DENIED,
+        "expect": {ROLE_PUBLIC: DENIED, ROLE_BILLING: DENIED, ROLE_WAREHOUSE: DENIED,
                    ROLE_ACCOUNT: ANSWER, ROLE_ADMIN: ANSWER},
     },
     {
@@ -93,7 +94,7 @@ QUESTIONS = [
         "source": "02_billing_rate_card.md (billing only)",
         "question": "What does the standard-tier rate card charge for "
                     "receiving and storage?",
-        "expect": {ROLE_BILLING: ANSWER, ROLE_WAREHOUSE: DENIED,
+        "expect": {ROLE_PUBLIC: DENIED, ROLE_BILLING: ANSWER, ROLE_WAREHOUSE: DENIED,
                    ROLE_ACCOUNT: DENIED, ROLE_ADMIN: ANSWER},
     },
     {
@@ -105,7 +106,7 @@ QUESTIONS = [
         "source": "14_onboarding_case_standard_fernpost.md (no role)",
         "question": "Why was Fernpost Paper's onboarding escalated after "
                     "go-live, and what was the resolution?",
-        "expect": {ROLE_BILLING: DENIED, ROLE_WAREHOUSE: DENIED,
+        "expect": {ROLE_PUBLIC: DENIED, ROLE_BILLING: DENIED, ROLE_WAREHOUSE: DENIED,
                    ROLE_ACCOUNT: DENIED, ROLE_ADMIN: ANSWER},
     },
     {
@@ -116,8 +117,21 @@ QUESTIONS = [
         "source": "not in any document",
         "question": "What is Meridian's parental leave policy for warehouse "
                     "staff?",
-        "expect": {ROLE_BILLING: REFUSE, ROLE_WAREHOUSE: REFUSE,
+        "expect": {ROLE_PUBLIC: REFUSE, ROLE_BILLING: REFUSE, ROLE_WAREHOUSE: REFUSE,
                    ROLE_ACCOUNT: REFUSE, ROLE_ADMIN: REFUSE},
+    },
+    {
+        # The public tier's positive case. Without it public is DENIED on every
+        # other question, and a tier that only ever refuses proves nothing - a
+        # role mapped to zero documents would pass all of those and still be
+        # broken. 00_company_profile.md is the one document every role holds,
+        # so this must answer for all five.
+        "name": "company profile, public-answerable",
+        "source": "00_company_profile.md (every role)",
+        "question": "What does Meridian Fulfillment do, how many facilities "
+                    "does it operate, and where are they?",
+        "expect": {ROLE_PUBLIC: ANSWER, ROLE_BILLING: ANSWER, ROLE_WAREHOUSE: ANSWER,
+                   ROLE_ACCOUNT: ANSWER, ROLE_ADMIN: ANSWER},
     },
 ]
 
@@ -141,15 +155,15 @@ ALLOW, DENY = "ALLOW", "DENY"
 
 TOOL_EXPECT = {
     agent.TOOL_ORDER_STATUS: {
-        ROLE_BILLING: DENY, ROLE_WAREHOUSE: ALLOW,
+        ROLE_PUBLIC: DENY, ROLE_BILLING: DENY, ROLE_WAREHOUSE: ALLOW,
         ROLE_ACCOUNT: ALLOW, ROLE_ADMIN: ALLOW,
     },
     agent.TOOL_CHECK_INVENTORY: {
-        ROLE_BILLING: DENY, ROLE_WAREHOUSE: ALLOW,
+        ROLE_PUBLIC: DENY, ROLE_BILLING: DENY, ROLE_WAREHOUSE: ALLOW,
         ROLE_ACCOUNT: DENY, ROLE_ADMIN: ALLOW,
     },
     agent.TOOL_DRAFT_ESCALATION: {
-        ROLE_BILLING: ALLOW, ROLE_WAREHOUSE: ALLOW,
+        ROLE_PUBLIC: DENY, ROLE_BILLING: ALLOW, ROLE_WAREHOUSE: ALLOW,
         ROLE_ACCOUNT: ALLOW, ROLE_ADMIN: ALLOW,
     },
     # The deliberate split: Billing sees the invoice but not the contracted
@@ -157,15 +171,15 @@ TOOL_EXPECT = {
     # rate dispute cannot be closed by either role alone, which is the V4
     # owner-wins decision reappearing on the tool surface.
     agent.TOOL_GET_INVOICE: {
-        ROLE_BILLING: ALLOW, ROLE_WAREHOUSE: DENY,
+        ROLE_PUBLIC: DENY, ROLE_BILLING: ALLOW, ROLE_WAREHOUSE: DENY,
         ROLE_ACCOUNT: DENY, ROLE_ADMIN: ALLOW,
     },
     agent.TOOL_GET_RATE_SCHEDULE: {
-        ROLE_BILLING: DENY, ROLE_WAREHOUSE: DENY,
+        ROLE_PUBLIC: DENY, ROLE_BILLING: DENY, ROLE_WAREHOUSE: DENY,
         ROLE_ACCOUNT: ALLOW, ROLE_ADMIN: ALLOW,
     },
     agent.TOOL_CHECK_CAPACITY: {
-        ROLE_BILLING: DENY, ROLE_WAREHOUSE: ALLOW,
+        ROLE_PUBLIC: DENY, ROLE_BILLING: DENY, ROLE_WAREHOUSE: ALLOW,
         ROLE_ACCOUNT: DENY, ROLE_ADMIN: ALLOW,
     },
 }

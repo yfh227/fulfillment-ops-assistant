@@ -93,10 +93,19 @@ ROLE_WAREHOUSE = "warehouse_lead"
 ROLE_ACCOUNT = "account_manager"
 ROLE_ADMIN = "admin"
 
+# The unauthenticated tier. Every visitor to the public URL acts under this role
+# until they sign in, so it is the one role that is reachable without a
+# credential and the one whose scope has to be safe to hand a stranger.
+ROLE_PUBLIC = "public_viewer"
+
 # Admin is deliberately excluded: it is an all-access testing identity, not a
 # role the document mapping is defined against.
-CONTENT_ROLES = (ROLE_BILLING, ROLE_WAREHOUSE, ROLE_ACCOUNT)
+CONTENT_ROLES = (ROLE_PUBLIC, ROLE_BILLING, ROLE_WAREHOUSE, ROLE_ACCOUNT)
 ROLES = CONTENT_ROLES + (ROLE_ADMIN,)
+
+# Roles that require signing in. Everything above the public tier - what the UI
+# calls the Executive tier - is exactly this set.
+EXECUTIVE_ROLES = (ROLE_BILLING, ROLE_WAREHOUSE, ROLE_ACCOUNT, ROLE_ADMIN)
 
 # The role-to-document mapping, derived from each document's own header
 # metadata (Owner, Distribution, Attendees, Negotiated by) rather than from
@@ -108,6 +117,15 @@ ROLES = CONTENT_ROLES + (ROLE_ADMIN,)
 # states it has no named Account Manager, so it belongs to no role in this
 # model, and it is the deliberate access-denied test case for all three.
 ROLE_DOCUMENTS = {
+    # The public tier sees one document: the company profile. It is the only
+    # universal document in the V4 mapping, and it carries the "fictional
+    # company" disclaimer, so nothing an anonymous visitor can reach reads as a
+    # real client record. One document is still enough to demonstrate
+    # grounding, citation, an honest refusal, and - by asking about anything
+    # else - the access notice.
+    ROLE_PUBLIC: frozenset({
+        "00_company_profile.md",
+    }),
     ROLE_BILLING: frozenset({
         "00_company_profile.md",
         "02_billing_rate_card.md",
@@ -150,6 +168,7 @@ ROLE_DOCUMENTS = {
 
 
 ROLE_LABELS = {
+    ROLE_PUBLIC: "Public Viewer",
     ROLE_BILLING: "Billing Analyst",
     ROLE_WAREHOUSE: "Warehouse Lead",
     ROLE_ACCOUNT: "Account Manager",
@@ -599,7 +618,7 @@ def retrieve_context(question: str, client=None, k: int = RETRIEVAL_K,
 
 def ask(question: str, context: str = None, client=None,
         use_cache: bool = True, use_retrieval: bool = False,
-        role: str = None) -> dict:
+        role: str = None, max_tokens: int = None) -> dict:
     """Ask a grounded question; return the answer plus call metrics.
 
     Returns a dict with keys: answer, latency_ms, input_tokens, output_tokens,
@@ -674,11 +693,19 @@ def ask(question: str, context: str = None, client=None,
                     f"---\n\nQuestion: {question}"
         }]
 
+    # max_tokens bounds generated output. Output is the one component no
+    # retrieval strategy reduces, so the public tier caps it directly rather
+    # than hoping answers stay short.
+    kwargs = {}
+    if max_tokens:
+        kwargs["inferenceConfig"] = {"maxTokens": max_tokens}
+
     start = time.perf_counter()
     response = client.converse(
         modelId=MODEL_ID,
         system=[{"text": SYSTEM_PROMPT}],
         messages=[{"role": "user", "content": content}],
+        **kwargs,
     )
     latency_ms = round((time.perf_counter() - start) * 1000)
     usage = response.get("usage", {})
