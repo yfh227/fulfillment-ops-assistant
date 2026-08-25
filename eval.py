@@ -25,6 +25,7 @@ from core import (
     get_s3_client,
     load_documents,
     refused,
+    self_report_state,
 )
 
 CASES = [
@@ -235,7 +236,8 @@ def main() -> int:
             if "refuse" in failed:
                 print(
                     f"  should_refuse     : {case['should_refuse']} "
-                    f"but refusal detected = {refused(answer)}"
+                    f"but refusal detected = {refused(answer)} "
+                    f"(self-report: {self_report_state(answer)!r})"
                 )
             if "flag" in failed:
                 print(

@@ -19,7 +19,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from core import cited_docs, refused, review_flagged
+from core import cited_docs, refused, review_flagged, self_report_state
 
 DB_PATH = Path(__file__).parent / "usage.db"
 
@@ -35,11 +35,18 @@ CREATE TABLE IF NOT EXISTS usage (
     cited_docs     TEXT,
     review_flagged INTEGER,
     refused        INTEGER,
+    self_report    TEXT,
     error          TEXT,
     feedback       TEXT,
     feedback_note  TEXT
 )
 """
+
+# CREATE TABLE IF NOT EXISTS does not add a column to a table that already
+# exists, and every deployed database predates self_report. ALTER TABLE ADD
+# COLUMN has no IF NOT EXISTS in SQLite, so init() tries it and swallows the
+# one error that means "already there" - anything else still raises.
+_ADD_SELF_REPORT_COLUMN = "ALTER TABLE usage ADD COLUMN self_report TEXT"
 
 SCHEMA_AGENT_RUN = """
 CREATE TABLE IF NOT EXISTS agent_run (
@@ -86,11 +93,17 @@ def _connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
 
 
 def init(db_path: Path = DB_PATH) -> None:
-    """Create every table if absent. Safe to call repeatedly."""
+    """Create every table if absent, and migrate columns added since. Safe to
+    call repeatedly."""
     with _connect(db_path) as conn:
         conn.execute(SCHEMA)
         conn.execute(SCHEMA_AGENT_RUN)
         conn.execute(SCHEMA_AGENT_STEP)
+        try:
+            conn.execute(_ADD_SELF_REPORT_COLUMN)
+        except sqlite3.OperationalError as e:
+            if "duplicate column" not in str(e).lower():
+                raise
 
 
 def log_call(
@@ -122,6 +135,7 @@ def log_call(
             "cited_docs": None,
             "review_flagged": None,
             "refused": None,
+            "self_report": None,
             "error": f"{type(error).__name__}: {error}",
         }
     else:
@@ -134,6 +148,10 @@ def log_call(
             "cited_docs": ",".join(cited_docs(answer, known)),
             "review_flagged": int(review_flagged(answer)),
             "refused": int(refused(answer)),
+            # The raw yes/partial/no/None, alongside the collapsed bit above -
+            # refused=0 cannot by itself distinguish a clean "no" from a
+            # "partial" the boolean was designed to treat the same way.
+            "self_report": self_report_state(answer),
             "error": None,
         }
 
@@ -142,8 +160,9 @@ def log_call(
             """
             INSERT INTO usage (
                 timestamp, question, answer, latency_ms, input_tokens,
-                output_tokens, cited_docs, review_flagged, refused, error
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                output_tokens, cited_docs, review_flagged, refused,
+                self_report, error
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 datetime.now(timezone.utc).isoformat(),
@@ -155,6 +174,7 @@ def log_call(
                 row["cited_docs"],
                 row["review_flagged"],
                 row["refused"],
+                row["self_report"],
                 row["error"],
             ),
         )

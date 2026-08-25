@@ -60,18 +60,39 @@ answer the question fully and even if you are confident. Err toward flagging.
 5. SELF-REPORT. Make the very last line of your response exactly one of:
 
    REFUSED: yes
+   REFUSED: partial
    REFUSED: no
 
-   Answer **yes** if any part of the question could not be answered from the \
-documents — including when you answered part of it and had to state that the \
-rest is not covered, and including when you corrected a false premise because \
-the documents do not support it.
+   Answer **yes** if any part of the question has no coverage in the documents \
+at all — a genuine gap, where the documents simply do not address it. Also \
+answer yes when you corrected a false premise because the documents do not \
+support it.
 
-   Answer **no** when the documents answered what was actually asked. Noting \
-in passing what the documents happen not to contain, or which details a \
-decision would still depend on, does not make it a yes if you answered the \
-question. The test is whether the question was answered, not whether you \
-added a caveat.
+   Answer **partial** only for a single, coherent question where the \
+documents fully cover the topic and equip you to reason about it, but do not \
+themselves resolve it for these specific facts — for example, whether to \
+approve a specific disputed amount, when the documents describe the process \
+and the criteria but the decision on this case is a judgment call, not a \
+lookup. The documents were not silent anywhere in scope; the question just \
+cannot be reduced to what they say.
+
+   Do NOT answer partial for a multi-part question where one part is simply \
+not covered, even if you fully answered the other part. That is yes, not \
+partial — a real gap in the documents, not a judgment call. partial is for \
+when the documents address everything relevant and still leave a decision \
+open; yes is for when they leave something out.
+
+   Answer **no** when the documents directly answered what was actually \
+asked, with no gap and no judgment call left open. Noting in passing what \
+the documents happen not to contain, or which details a decision would \
+still depend on, does not make it partial or yes if you actually answered \
+the question — the test is whether the question was answered, not whether \
+you added a caveat.
+
+   This is independent of the HUMAN REVIEW FLAG in rule 4. A fully answered \
+question (no) can still need the flag because of what is at stake, and a \
+judgment call (partial) is not automatically flagged unless rule 4's own \
+criteria are met. Report both accurately; they answer different questions.
 
    This line is read by an automated check. It must be the final line, on its \
 own, with no other text after it."""
@@ -294,20 +315,46 @@ REFUSAL_MAX_WORDS = 400
 # Tolerant of markdown emphasis the model may add around the field
 # ("**REFUSED:** yes", "> REFUSED: no"). The whole line is matched so it can
 # be stripped cleanly before display.
+#
+# "partial" must be tried before "no" is even a candidate confusion risk: yes,
+# partial and no are mutually exclusive words, not prefixes of one another, so
+# there is no overlap to order carefully - unlike REFUSAL_PHRASES, this is a
+# closed vocabulary the model is told to choose from, not prose to pattern-match.
 SELF_REPORT_RE = re.compile(
-    r"^[\s>*_#`-]*REFUSED[:\s*_`]*\s*(yes|no)\b.*$", re.I | re.M)
+    r"^[\s>*_#`-]*REFUSED[:\s*_`]*\s*(yes|partial|no)\b.*$", re.I | re.M)
 
 
-def self_reported_refusal(answer: str) -> bool | None:
-    """Read the model's REFUSED: self-report. None if absent.
+def self_report_state(answer: str) -> str | None:
+    """Read the model's raw REFUSED: self-report - "yes", "partial", "no", or
+    None if absent.
 
     The last occurrence wins — the line is specified as final, and an earlier
     mention would be the model discussing the field rather than emitting it.
+
+    This is the raw three-state value. Most callers want the boolean
+    self_reported_refusal() below; this exists so a caller that needs to tell
+    "partial" apart from a clean "no" - usage_log, to store what actually
+    happened rather than a collapsed bit - can do so.
     """
     found = SELF_REPORT_RE.findall(answer)
     if not found:
         return None
-    return found[-1].lower() == "yes"
+    return found[-1].lower()
+
+
+def self_reported_refusal(answer: str) -> bool | None:
+    """Read the model's REFUSED: self-report as a boolean. None if absent.
+
+    "partial" maps to False. The question was answered - the documents inform
+    the decision even though they do not make it - which is what should_refuse
+    asks about. Losing the yes/partial distinction here is deliberate: refused()
+    and everything built on it (usage_log, eval.py, eval_roles.py, stats.py)
+    only ever needed to know whether the corpus answered the question, and that
+    contract has not changed. Callers that need the raw state, to tell "partial"
+    apart from a clean "no", use self_report_state() instead.
+    """
+    state = self_report_state(answer)
+    return None if state is None else state == "yes"
 
 
 def strip_self_report(answer: str) -> str:
