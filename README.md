@@ -11,17 +11,22 @@ review.
 
 **https://nfuqwbwt4zabt2tpxwznvo.streamlit.app/**
 
-Login is required — the app gates Bedrock calls billed to the deployer's AWS
-account, so there is deliberately no published default password. See
-[Deployed environments have no shell](#deployed-environments-have-no-shell) for
-how credentials reach a hosted deployment.
+**No login is required.** The app is public by default — see *The public tier*
+below. Ask it something and it answers from `00_company_profile.md`, the one
+document a public visitor can see; ask it something outside that document and
+it should return *"That's outside what a Public Viewer has access to in this
+system"* rather than a generic "I don't know". Those two behaviours are most of
+the point of the demo without signing in at all.
 
-Four accounts exist, one per role plus an all-access admin. Signing in as
-`billing` should report **7 of 23 documents** visible; `warehouse` 12, `account`
-13, `admin` all 23. Asking that account something outside its scope — a Billing
-Analyst asking about Reno putaway, say — should return *"That's outside what a
-Billing Analyst has access to in this system"* rather than a generic "I don't
-know". Those two behaviours are the point of the demo.
+Signing in reaches the wider, role-scoped Executive tier — four accounts exist,
+one per role plus an all-access admin, gating Bedrock calls billed to the
+deployer's AWS account, so there is deliberately no published default password.
+See [Deployed environments have no shell](#deployed-environments-have-no-shell)
+for how credentials reach a hosted deployment. Signed in as `billing`, the app
+should report **7 of 23 documents** visible; `warehouse` 12, `account` 13,
+`admin` all 23. Asking that account something outside its scope — a Billing
+Analyst asking about Reno putaway, say — produces the same access notice
+against a wider, role-scoped document set.
 
 ## Layout
 
@@ -35,6 +40,7 @@ know". Those two behaviours are the point of the demo.
 | `agent.py` | Tool-use agent: tool schemas, `ROLE_TOOLS`, the executor, and the bounded loop. |
 | `ops_data.py` | Read-only accessor over `fixtures/`, so the backing store can change without touching the tools. |
 | `fixtures/` | Committed JSON operational data — orders, inventory, invoices, rate schedules, capacity. |
+| `spend_guard.py` | Daily/session/output-token caps for the public tier — see *The public tier*. |
 | `usage_log.py` | SQLite logging of every question asked. |
 | `stats.py` | Reporting queries and the adoption summary generator. |
 
@@ -102,8 +108,20 @@ a single result as a sample, not a verdict.
 
 ### Known limitations of refusal detection
 
-The weakest part of the harness is the refusal check, and it is worth stating
-plainly what it can get wrong.
+**Correction: the paragraphs below describe the phrase-matching heuristic as
+the primary mechanism and a structured self-report as unbuilt future work.**
+That stopped being true once rule 5 shipped, and was never updated to say so —
+the exact kind of stale documentation this project has caught and fixed before
+(see the retrieval-layer correction in the commit history). `refused()` in
+`core.py` prefers the model's own `REFUSED: yes / partial / no` self-report and
+falls back to the phrase list only when that field is absent — an older stored
+answer, or a response that ignored rule 5. Everything below this note is retained
+because the phrase list is still real code, still the fallback path, and its
+failure modes are still true of *it specifically* — but it is no longer the
+primary check, and the "evaluated, not built" line at the end is wrong.
+
+The weakest part of the fallback path is the refusal check, and it is worth
+stating plainly what it can get wrong.
 
 **It is substring matching over prose.** The model writes an answer in natural
 language and a hand-maintained phrase list decides whether that answer counts as
@@ -136,15 +154,66 @@ longest measured is 259, so there is headroom, but a case that produces a long
 partial refusal — extensive explanation of what the documents *do* cover before
 admitting a gap — would score as a non-refusal. No current case does this.
 
-**The more robust fix is a structured self-report from the model rather than
-pattern-matching its prose** — asking it to emit a machine-readable field
-declaring whether it refused, and grading that. This removes the phrase list
-entirely and with it both failure modes above. The cost is an extra call per
-case if the self-report is graded separately, or a change to the user-facing
-answer format if the field is embedded in the answer itself. **Evaluated, not
-built** — the current rule is clean across the whole evidence base, and the
-substring approach keeps scoring deterministic, which LLM-based grading does
-not.
+**This was later built.** Rule 5's self-report is a machine-readable field
+declaring whether the model considers the question answered, and `refused()`
+grades that instead of the phrase list whenever it is present — no extra call,
+since it rides in the same response, and no loss of determinism, since it is a
+fixed vocabulary the model chooses from rather than free text an LLM grades. It
+does not remove the phrase list; that stays as the fallback for the case the
+field describes as absent. See *Access denial vs. genuine "not in any
+document"* and *The three-state self-report* below for what it actually
+resolved and where its own limits are.
+
+### The three-state self-report
+
+`REFUSED:` was binary — `yes` or `no` — until a real question exposed a gap
+neither state could represent: *"Should we issue a $15,000 credit to a client
+disputing a storage charge?"* The billing dispute policy covers the process and
+criteria for a credit; it does not make this specific call. That is not a gap in
+the documents and it is not a fully answered question — the model was being
+asked to choose between two words that both misdescribed what it had actually
+done, and it split roughly 6/8 `yes` versus the case's asserted
+`should_refuse: False` as a result. Not a flake — a vocabulary that could not
+say what was true.
+
+`REFUSED: partial` is the third option: the documents cover the topic and equip
+a judgment, but do not settle it for these specific facts. It is deliberately
+independent of rule 4's `NEEDS HUMAN REVIEW` flag — a fully answered question can
+still need the flag because of what is at stake, and a judgment call is not
+automatically flagged unless rule 4's own criteria are met on its own terms. The
+$15,000 case triggers both, for unrelated reasons, and the prompt says so
+explicitly rather than leaving the model to guess whether the two are the same
+thing.
+
+**The first version of this caused a regression, and it was caught before it
+shipped.** "Mixed coverage" — *"What's the dispute window, and what late fee
+applies after it?"* — is a compound question where one part is fully covered and
+the other is a genuine gap, not a judgment call, and it had been stable at 8/8
+under the two-state rule. Adding `partial` dropped it to 4/8: the model started
+calling it `partial` in two runs out of eight, because the word reads
+colloquially as *"the question was partially answered"* for a multi-part
+question, which is not the narrower meaning intended. The fix was an explicit
+carve-out — *do not answer partial for a multi-part question where one part is
+simply not covered; that is yes, not partial* — re-measured at 0/8 `partial`
+before it shipped.
+
+**What remained after that fix was not new.** Mixed coverage still shows
+occasional `REFUSED: no` — the model reading "the documents don't mention a late
+fee" as a confident negative answer rather than a gap. That reasoning, in nearly
+identical wording, is on record in this repository from the very first `eval.py`
+run of the session that added the three-state field, before the field existed.
+It is a pre-existing ambiguity in how an absence gets reported, orthogonal to
+`partial` entirely, and it was never in scope for this change to fix. `eval.py`'s
+failure detail now prints the raw self-report state next to the boolean, so this
+shape is identifiable on sight rather than requiring a fresh trace each time it
+recurs.
+
+`self_reported_refusal()` still returns a boolean for every existing caller —
+`partial` maps to `False`, since the question was answered even though acting on
+it needs judgment. `self_report_state()` is the new function for a caller that
+needs the raw value; `usage_log` uses it to store `partial` distinctly from a
+clean `no` in a new `self_report` column, added by migration so a database
+written before this change still reports without it.
 
 ### Evidence base
 
@@ -174,13 +243,20 @@ what a given *user* may ask for once they are inside.
 Login is handled by `streamlit-authenticator`, which stores the signed-in user's
 role in session state. Everything downstream reads a role-filtered document list.
 
-### The three roles
+### The roles
 
-The mapping was derived from each document's own header metadata — `Owner`,
-`Distribution`, `Attendees`, `Negotiated by` — rather than from topic. The full
-derivation, including which assignments are metadata-backed and which are
-judgment calls, is in
-[v4_role_based_access.md](v4_role_based_access.md).
+The Executive-tier mapping was derived from each document's own header
+metadata — `Owner`, `Distribution`, `Attendees`, `Negotiated by` — rather than
+from topic. The full derivation, including which assignments are
+metadata-backed and which are judgment calls, is in
+[v4_role_based_access.md](v4_role_based_access.md). The public tier is a later
+addition — see *The public tier* below — and was not part of that derivation;
+it is scoped by a different rule, stated where it is defined.
+
+**Public Viewer — 1 document.** Anyone who has not signed in. See *The public
+tier* for what it is and why.
+
+`00_company_profile.md`
 
 **Billing Analyst — 7 documents**
 
@@ -219,10 +295,10 @@ judgment calls, is in
 **admin — all 23.** An all-access identity for regression runs, not a content
 role; the mapping is not defined against it.
 
-Three properties are deliberate rather than incidental:
+Four properties are deliberate rather than incidental:
 
-- **`00_company_profile.md` is universal** — the only document all three roles
-  share by design.
+- **`00_company_profile.md` is universal** — the only document every role,
+  public tier included, shares by design.
 - **`14_onboarding_case_standard_fernpost.md` belongs to no role.** The document
   states it has no named Account Manager (standard tier, pooled queue), so
   assigning it to Account Manager would assert something the document denies.
@@ -236,6 +312,72 @@ Three properties are deliberate rather than incidental:
 
 An unrecognised role **fails closed**: `get_documents_for_role()` returns the
 empty set, so a typo'd or renamed role sees nothing rather than everything.
+
+### The public tier
+
+The app is **public by default**. An anonymous visitor acts under
+`ROLE_PUBLIC` and can use the assistant against `00_company_profile.md` —
+signing in *elevates* to the Executive tier; it is not required to use the app
+at all. This is a reversal of the original design, made deliberately: a login
+wall makes a demo unusable to anyone without a credential, and it hides the
+whole point of the project behind that wall. A visitor who asks the public
+tier something outside its one document sees the access notice fire live —
+*"That's outside what a Public Viewer has access to in this system"* — which
+demonstrates the access-control story better than a password box does.
+
+**Why one document, and why that one.** `00_company_profile.md` is the sole
+document every Executive-tier role already shares, and it carries an explicit
+"fictional company" disclaimer, so nothing an anonymous visitor can reach reads
+as a real client record. One document is still enough to demonstrate grounding,
+citation, an honest refusal (ask about something genuinely outside the whole
+corpus), and — by asking about anything else in the corpus — the access notice.
+`ROLE_PUBLIC` maps to zero tools in `agent.py`: live operational records
+belong to nobody without a credential.
+
+**What used to guard the AWS bill was the login. It no longer does — spend_guard.py
+does.** Opening the app to anonymous traffic without a replacement control would
+have been the actual outage, not the one that was just fixed. The control ships
+in the same change as the tier, not after it:
+
+| Control | Value | Purpose |
+|---|---|---|
+| Daily cap | 100 calls (asks + agent runs) | Bounds worst-case daily spend |
+| Per-session cap | 10 | Courtesy speed bump, trivially bypassed by a new tab |
+| Output tokens | 600 | Bounds the one cost component no context strategy reduces |
+
+At the measured retrieval price of $1.87 per 100 questions the daily cap bounds
+worst-case spend near **$1.87/day** — though the public tier does not actually
+use the retrieval path; see below. The cap counts `agent_run` rows as well as
+`usage` rows, because both are Bedrock-billed calls; counting only one would
+leave the other free to run unmetered. It fails closed on a database it cannot
+read — reporting the cap as already reached rather than as zero calls used —
+because guessing low there means an uncapped bill, and guessing high only means
+a demo that says come back later.
+
+**One piece of reasoning was shipped and then measured wrong.** The first
+version forced the public tier onto the retrieval path, citing the committed
+$4.86-per-100 (cached direct context) versus $1.87-per-100 (retrieval) figures.
+Those figures describe the full 23-document corpus. Measured against what the
+public tier actually sends:
+
+    public context      2,862 chars   ~715 tokens    1.0% of the corpus
+    full corpus       273,554 chars ~68,388 tokens
+
+At 1% of the corpus the direct path is already far cheaper than either
+published figure, so the public tier uses the same code path as every other
+role rather than a special-cased one — simpler, and it avoids making the main
+answer path depend on `vector_index.npz`.
+
+**The daily cap has a real limitation, stated plainly rather than left for
+someone to discover.** It reads `usage.db`, which is gitignored. Streamlit
+Community Cloud rebuilds from a clean checkout on every restart and redeploy,
+so on a hosted deployment **this is a container-lifetime cap, not a true daily
+one** — it resets whenever the container does. It still stops the case that
+actually costs money, a sustained loop against a running container, but it is
+not a guarantee. **The real backstop is an AWS Budgets alarm on the deploying
+account** — set outside this application, and the one control here that
+restarting the app cannot reset. Confirm one is in place before pointing
+anyone at the live URL.
 
 ### Enforcement holds in both modes
 
@@ -360,15 +502,18 @@ cookie_key = "..."   # optional; without it sessions end when the app restarts
 ```
 
 Precedence is: an existing file wins, then secrets, then nothing. That last case
-prints an actionable error naming the missing section and **writes nothing**.
+**writes nothing** and no longer stops the app — since the public tier does not
+need a credential to run, a missing `[auth]` section costs the login, not the
+app. The sidebar reports sign-in as unavailable and shows the same `[auth]`
+snippet as above; the public tier is otherwise unaffected.
 
-Writing a config with invented passwords would be worse than failing: the login
-would render but open for nobody, and since Streamlit reruns the whole script on
-every interaction, the *next* rerun would find the file, report it as fine, and
-hide the problem after showing the warning once. There is deliberately no
-published-default password either — this login gates Bedrock calls billed to
-whoever deployed the app, so a known password on a public URL is an open tab on
-their AWS account.
+Writing a config with invented passwords would be worse than doing nothing: the
+login would render but open for nobody, and since Streamlit reruns the whole
+script on every interaction, the *next* rerun would find the file, report it as
+fine, and hide the problem after showing the warning once. There is deliberately
+no published-default password either — an Executive-tier password known to the
+public would undo the restriction it exists to enforce, and this login still
+gates Bedrock calls billed to whoever deployed the app.
 
 **`vector_index.npz`** is built by `embed_chunks.py`. The access pre-check now
 depends on it in **both** modes, not just retrieval — direct context previously
@@ -462,14 +607,17 @@ That one maps roles to `.md` filenames; order records and invoices are not
 documents, and forcing operational data into a document-name mapping would be
 the wrong shape. Both are written down explicitly rather than inferred.
 
-| Tool | Billing Analyst | Warehouse Lead | Account Manager | admin |
-|---|:-:|:-:|:-:|:-:|
-| `get_order_status` | — | ● | ● | ● |
-| `check_inventory` | — | ● | — | ● |
-| `check_capacity` | — | ● | — | ● |
-| `get_invoice` | ● | — | — | ● |
-| `get_rate_schedule` | — | — | ● | ● |
-| `draft_escalation` | ● | ● | ● | ● |
+| Tool | Public Viewer | Billing Analyst | Warehouse Lead | Account Manager | admin |
+|---|:-:|:-:|:-:|:-:|:-:|
+| `get_order_status` | — | — | ● | ● | ● |
+| `check_inventory` | — | — | ● | — | ● |
+| `check_capacity` | — | — | ● | — | ● |
+| `get_invoice` | — | ● | — | — | ● |
+| `get_rate_schedule` | — | — | — | ● | ● |
+| `draft_escalation` | — | ● | ● | ● | ● |
+
+The public tier gets **no tools at all**. Live operational records — orders,
+invoices, stock, facility positions — belong to nobody without a credential.
 
 Scope is derived the same way the document mapping was — from who owns the
 data. Facility positions and stock belong to Facility Managers, so they are the
