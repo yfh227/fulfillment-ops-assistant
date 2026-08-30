@@ -164,6 +164,28 @@ if role not in core.ROLES:
 is_public = role == core.ROLE_PUBLIC
 
 
+AWS_SECRET_KEYS = ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY")
+
+
+def missing_aws_secrets() -> list[str]:
+    """Which AWS keys are absent from secrets, if any.
+
+    Checked explicitly rather than left to surface as a KeyError from inside
+    the S3 call. A misconfigured deployment is a configuration problem with a
+    known fix, and it should read as one - not as a raw stack-trace message
+    with a docs link, which is what an unconfigured deploy showed to every
+    visitor before this. Same treatment the missing-[auth] path already gets.
+    """
+    missing = []
+    for key in AWS_SECRET_KEYS:
+        try:
+            if not st.secrets[key]:
+                missing.append(key)
+        except Exception:
+            missing.append(key)
+    return missing
+
+
 @st.cache_resource
 def get_bedrock_client():
     return core.get_bedrock_client(
@@ -204,6 +226,29 @@ def render_answer(answer: str) -> None:
     """
     st.markdown(core.strip_self_report(answer).replace("$", r"\$"))
 
+
+# Checked before the S3 call so a deployment with no AWS credentials explains
+# itself, rather than surfacing the KeyError raised from inside boto3 setup.
+_missing_aws = missing_aws_secrets()
+if _missing_aws:
+    st.error(
+        "This deployment is not finished being configured — its AWS "
+        "credentials are missing, so the reference documents cannot be "
+        "loaded. Nothing is broken in the application itself."
+    )
+    with st.expander("Configure AWS access"):
+        st.write(
+            f"Missing from secrets: {', '.join(f'`{k}`' for k in _missing_aws)}. "
+            "Add the keys below under **Settings → Secrets** (append them — do "
+            "not replace an existing `[auth]` section), then reboot the app."
+        )
+        st.code(
+            'AWS_ACCESS_KEY_ID = "..."\n'
+            'AWS_SECRET_ACCESS_KEY = "..."\n'
+            'AWS_DEFAULT_REGION = "us-east-1"',
+            language="toml",
+        )
+    st.stop()
 
 try:
     documents = load_documents()
