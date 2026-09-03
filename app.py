@@ -400,5 +400,35 @@ with st.sidebar:
         )
 
 
+# --------------------------------------------------------------------------
+# Footer
+#
+# Rendered for every role, public included. A visitor who reaches this page
+# from a link has no other way to find the companion project, and the contrast
+# between the two - the same access rule enforced at different boundaries
+# because the runtimes differ - is the part worth seeing.
+# --------------------------------------------------------------------------
+
+st.divider()
+st.markdown(
+    "**Companion project — "
+    "[fulfillment-ops-mcp](https://github.com/yfh227/fulfillment-ops-mcp)**  \n"
+    "A Model Context Protocol server in TypeScript exposing one tool "
+    "(`get_order_status`) over stdio, so an AI client like Claude Desktop can "
+    "call it directly."
+)
+st.caption(
+    "It carries the same constraint as this app: whoever calls a tool controls "
+    "that tool's inputs, so the caller's role is never a tool parameter. This "
+    "app injects role from an authenticated session; the MCP server has no "
+    "session layer, so it fixes the role at the process boundary from the "
+    "environment instead. Same rule, different enforcement point."
+)
+st.caption(
+    "Source for this app: "
+    "[fulfillment-ops-assistant](https://github.com/yfh227/fulfillment-ops-assistant)"
+)
+
+
 if __name__ == "__main__":
     pass
