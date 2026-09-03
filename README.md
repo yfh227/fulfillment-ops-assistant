@@ -28,6 +28,20 @@ should report **7 of 23 documents** visible; `warehouse` 12, `account` 13,
 Analyst asking about Reno putaway, say — produces the same access notice
 against a wider, role-scoped document set.
 
+## Companion project
+
+[**fulfillment-ops-mcp**](https://github.com/yfh227/fulfillment-ops-mcp) — a
+minimal Model Context Protocol server in TypeScript, exposing a single
+`get_order_status` tool over stdio.
+
+It exists to carry the same constraint as *Why `role` is never in a tool schema*
+below into a different runtime. This project injects role from authenticated
+session state through an executor sitting between the model and the tools; the
+MCP server has no session layer, so it fixes the role at the process boundary
+instead — read from the environment by whoever starts the server, never from
+anything a caller sends. Separate repo rather than a subdirectory, since it is a
+second language and toolchain.
+
 ## Layout
 
 | File | Purpose |
