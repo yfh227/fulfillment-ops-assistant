@@ -31,8 +31,11 @@ against a wider, role-scoped document set.
 ## Companion project
 
 [**fulfillment-ops-mcp**](https://github.com/yfh227/fulfillment-ops-mcp) — a
-minimal Model Context Protocol server in TypeScript, exposing a single
-`get_order_status` tool over stdio.
+Model Context Protocol server in TypeScript exposing six fulfillment-operations
+tools over stdio, mapped to the same five roles as this project. Unpermitted
+tools are hidden from the client, and every handler checks the role again
+anyway. A parity script compares its mapping against this project's live
+`ROLE_TOOLS`.
 
 It exists to carry the same constraint as *Why `role` is never in a tool schema*
 below into a different runtime. This project injects role from authenticated
