@@ -454,13 +454,19 @@ with training_tab:
     budget_slots.append(st.empty())
 
     titles = {m["id"]: m["title"] for m in course["modules"]}
+    # Labels stay fixed. When they carried the completion mark, a module
+    # finishing changed its label, and the browser then showed no option
+    # selected while the server kept rendering the old one - seen on the live
+    # deployment. Completion is shown on its own line instead.
     module_id = st.radio(
         "Module",
         course_ids,
-        format_func=lambda m: (f"{'✅' if module_done(m) else '○'} "
-                               f"{course_ids.index(m) + 1}. {titles[m]}"),
+        format_func=lambda m: f"{course_ids.index(m) + 1}. {titles[m]}",
         key="training_module",
     )
+    st.caption("  ·  ".join(
+        f"{'✅' if module_done(m) else '○'} {course_ids.index(m) + 1}"
+        for m in course_ids))
     module = next(m for m in course["modules"] if m["id"] == module_id)
     state = module_state(module_id)
     was_done = module_done(module_id)

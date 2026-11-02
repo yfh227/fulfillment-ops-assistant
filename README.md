@@ -901,9 +901,11 @@ first-try pass rate on written answers, and grader calls and errors; the
 adoption summary gains a Training section, and the sidebar shows course
 completions.
 
-The same caveat as the daily spend counter applies: on Streamlit Community Cloud
-`usage.db` does not survive a restart or redeploy, so hosted training figures
-cover the current container's lifetime.
+The same caveat as the daily spend counter applies: `usage.db` lives in the
+container's filesystem, so hosted training figures last only as long as the
+container does. Pushing a code change was observed to keep it (the live app
+updated in place with its counts intact). Anything that starts a fresh container
+from a clean checkout loses them, since `usage.db` is gitignored.
 
 ## Usage logging
 
