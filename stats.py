@@ -141,6 +141,88 @@ SELECT COUNT(*) AS errors FROM agent_run WHERE error IS NOT NULL
 """
 
 
+# --------------------------------------------------------------------------
+# Training
+#
+# Computed in Python from the raw attempts rather than in SQL. "Completed" is a
+# per-learner, per-module condition (a passed task AND a passed reflection,
+# in any order, across any number of tries), which reads plainly here and
+# would be a nest of correlated subqueries there. The table is small.
+# --------------------------------------------------------------------------
+
+TRAINING_ROWS = """
+SELECT id, session_id, module_id, step, passed, graded_by, error
+FROM training_attempt
+ORDER BY id
+"""
+
+
+def training_summary(module_ids: list[str], db_path: Path = DB_PATH) -> dict:
+    """Learners, completions and grader figures. Zeros when nothing is logged,
+    and never creates the database as a side effect."""
+    empty = {"learners": 0, "module_completions": 0, "course_completions": 0,
+             "first_try_reflections": 0, "first_try_passed": 0,
+             "grader_calls": 0, "grader_errors": 0,
+             "per_module": {m: {"started": 0, "completed": 0} for m in module_ids}}
+    if not Path(db_path).exists():
+        return empty
+    try:
+        with connect(db_path) as conn:
+            rows = _rows(conn, TRAINING_ROWS)
+    except sqlite3.OperationalError:
+        return empty
+    if not rows:
+        return empty
+
+    started, task_ok, refl_ok, first_refl = {}, set(), set(), {}
+    grader_calls = grader_errors = 0
+    for r in rows:
+        key = (r["session_id"], r["module_id"])
+        started.setdefault(r["module_id"], set()).add(r["session_id"])
+        if r["step"] == "task" and r["passed"]:
+            task_ok.add(key)
+        if r["step"] == "reflection":
+            if r["passed"]:
+                refl_ok.add(key)
+            # Rows are ordered by id, so the first one seen is the first try.
+            first_refl.setdefault(key, bool(r["passed"]))
+        if r["graded_by"] == "model":
+            grader_calls += 1
+            if r["error"]:
+                grader_errors += 1
+
+    done = task_ok & refl_ok
+    per_session = {}
+    for session, module in done:
+        per_session.setdefault(session, set()).add(module)
+
+    return {
+        "learners": len({r["session_id"] for r in rows}),
+        "module_completions": len(done),
+        "course_completions": sum(
+            1 for mods in per_session.values() if set(module_ids) <= mods),
+        "first_try_reflections": len(first_refl),
+        "first_try_passed": sum(first_refl.values()),
+        "grader_calls": grader_calls,
+        "grader_errors": grader_errors,
+        "per_module": {
+            m: {"started": len(started.get(m, ())),
+                "completed": sum(1 for _, mod in done if mod == m)}
+            for m in module_ids
+        },
+    }
+
+
+def _training_module_ids() -> list[str]:
+    # Imported here so stats.py keeps working, minus the training section, in
+    # a checkout that predates the training modules.
+    try:
+        import training
+        return training.module_ids(training.load_course())
+    except (ImportError, OSError):
+        return []
+
+
 def _table_exists(conn: sqlite3.Connection, name: str) -> bool:
     """Databases written before V5 have no agent tables; report around them."""
     return bool(conn.execute(
@@ -252,6 +334,24 @@ def report(db_path: Path = DB_PATH) -> None:
         print(f"thumbs up     : {f['thumbs_up']}")
         print(f"thumbs down   : {f['thumbs_down']}")
 
+        if _table_exists(conn, "training_attempt"):
+            ids = _training_module_ids()
+            t = training_summary(ids, db_path)
+            _heading("TRAINING")
+            if not t["learners"]:
+                print("(no training attempts yet)")
+            else:
+                print(f"learners       : {t['learners']}")
+                print(f"modules done   : {t['module_completions']}")
+                print(f"courses done   : {t['course_completions']}  "
+                      f"({_pct(t['course_completions'], t['learners'])}% of learners)")
+                print(f"first-try pass : {t['first_try_passed']} of "
+                      f"{t['first_try_reflections']} written answers")
+                print(f"grader calls   : {t['grader_calls']}  "
+                      f"({t['grader_errors']} errors)")
+                for m, v in t["per_module"].items():
+                    print(f"  {m:<10}{v['started']:>4} started {v['completed']:>4} completed")
+
         if not _table_exists(conn, "agent_run"):
             print()
             return
@@ -340,6 +440,27 @@ def write_summary(db_path: Path = DB_PATH, out_path: Path = SUMMARY_PATH) -> Pat
             lines.append(f"{i}. `{r['document']}` — {r['citations']} {label}")
     else:
         lines.append("_No citations recorded yet._")
+
+    ids = _training_module_ids()
+    t = training_summary(ids, db_path)
+    if t["learners"]:
+        lines += [
+            "",
+            "## Training",
+            "",
+            f"- **Learners:** {t['learners']}",
+            f"- **Completed the full course:** {t['course_completions']} "
+            f"({_pct(t['course_completions'], t['learners'])}% of learners)",
+            f"- **Modules completed:** {t['module_completions']}",
+            f"- **Written answers passed first try:** {t['first_try_passed']} of "
+            f"{t['first_try_reflections']} "
+            f"({_pct(t['first_try_passed'], t['first_try_reflections'])}%)",
+            "",
+            "| Module | Started | Completed |",
+            "|---|---:|---:|",
+        ]
+        for m, v in t["per_module"].items():
+            lines.append(f"| `{m}` | {v['started']} | {v['completed']} |")
 
     lines.append("")
     out_path.write_text("\n".join(lines), encoding="utf-8")

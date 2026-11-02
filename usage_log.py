@@ -83,6 +83,35 @@ CREATE TABLE IF NOT EXISTS agent_step (
 """
 
 
+# Training attempts get their own table for the same reason agent runs do: an
+# attempt is a step in a module, not a question and an answer. A task attempt's
+# question is ALSO logged in `usage` as an ordinary ask - that is the real model
+# call - so this row records only the training outcome and costs nothing.
+# graded_by = 'model' marks the rows that made their own Bedrock call (the
+# rubric grader); spend_guard counts those against the public cap.
+#
+# session_id is a random id per browser session, never a user identity. It
+# exists so completions can be counted per learner without knowing who anyone
+# is.
+SCHEMA_TRAINING = """
+CREATE TABLE IF NOT EXISTS training_attempt (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp     TEXT    NOT NULL,
+    session_id    TEXT    NOT NULL,
+    role          TEXT    NOT NULL,
+    module_id     TEXT    NOT NULL,
+    step          TEXT    NOT NULL,
+    passed        INTEGER NOT NULL,
+    graded_by     TEXT    NOT NULL,
+    detail        TEXT,
+    latency_ms    INTEGER,
+    input_tokens  INTEGER,
+    output_tokens INTEGER,
+    error         TEXT
+)
+"""
+
+
 def _connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
     """Open a fresh connection.
 
@@ -99,6 +128,7 @@ def init(db_path: Path = DB_PATH) -> None:
         conn.execute(SCHEMA)
         conn.execute(SCHEMA_AGENT_RUN)
         conn.execute(SCHEMA_AGENT_STEP)
+        conn.execute(SCHEMA_TRAINING)
         try:
             conn.execute(_ADD_SELF_REPORT_COLUMN)
         except sqlite3.OperationalError as e:
@@ -257,6 +287,48 @@ def log_agent_run(
             ],
         )
         return run_id
+
+
+def log_training(
+    session_id: str,
+    role: str,
+    module_id: str,
+    step: str,
+    passed: bool,
+    graded_by: str,
+    detail: dict = None,
+    metrics: dict = None,
+    error: str = None,
+    db_path: Path = DB_PATH,
+) -> int:
+    """Write one training attempt. `step` is 'task' or 'reflection';
+    `graded_by` is 'code' or 'model'. Returns the row id."""
+    init(db_path)
+    metrics = metrics or {}
+    with _connect(db_path) as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO training_attempt (
+                timestamp, session_id, role, module_id, step, passed,
+                graded_by, detail, latency_ms, input_tokens, output_tokens, error
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                datetime.now(timezone.utc).isoformat(),
+                session_id,
+                role,
+                module_id,
+                step,
+                int(bool(passed)),
+                graded_by,
+                json.dumps(detail) if detail is not None else None,
+                metrics.get("latency_ms"),
+                metrics.get("input_tokens"),
+                metrics.get("output_tokens"),
+                error,
+            ),
+        )
+        return cursor.lastrowid
 
 
 def record_feedback(

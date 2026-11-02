@@ -1,3 +1,4 @@
+import uuid
 from pathlib import Path
 
 import streamlit as st
@@ -8,6 +9,7 @@ import core
 import make_auth_config
 import spend_guard
 import stats
+import training
 import usage_log
 
 st.set_page_config(page_title="Fulfillment Ops Assistant", layout="wide")
@@ -282,111 +284,314 @@ with st.expander(f"Documents visible to {role}"):
     for key, text in visible:
         st.write(f"- `{key}` ({len(text):,} chars)")
 
-st.subheader("Ask Claude")
-question = st.text_area("Question")
+def run_ask(question: str) -> dict:
+    """Ask the assistant once, under every control the app applies.
 
-# Reserved here, filled after the Ask block. Rendered in place, the budget line
-# was computed before a click was counted and so ran one question behind.
-budget_slot = st.empty()
-
-if st.button("Ask") and question.strip():
+    The one path to core.ask, shared by the Ask tab and the training tasks, so
+    a question asked during training is capped, logged and access-checked
+    exactly like any other. Returns {result, error, log_id, budget_message};
+    at most one of result/error/budget_message is set.
+    """
     init_usage_db()
-    st.session_state.feedback = None
 
     # Spend cap, checked before the model is reached. The public tier is the
     # only one that needs it: every other role required a credential to get
     # here, and that credential is the accountability.
-    allowed, why = (True, "")
     if is_public:
         allowed, why = spend_guard.check_public(st.session_state.get("public_calls", 0))
+        if not allowed:
+            return {"result": None, "error": None, "log_id": None,
+                    "budget_message": why}
 
-    if not allowed:
-        st.session_state.last_result = None
-        st.session_state.last_error = None
-        st.session_state.last_log_id = None
-        st.session_state.budget_message = why
-    else:
-        st.session_state.budget_message = None
-        with st.spinner("Asking Claude..."):
-            try:
-                result = core.ask(
-                    question,
-                    core.build_context(visible),
-                    get_bedrock_client(),
-                    role=role,
-                    max_tokens=(spend_guard.PUBLIC_MAX_OUTPUT_TOKENS
-                                if is_public else None),
-                )
-            except Exception as e:
-                st.session_state.last_log_id = usage_log.log_call(
-                    question, error=e, documents=visible
-                )
-                st.session_state.last_result = None
-                st.session_state.last_error = str(e)
-            else:
-                st.session_state.last_log_id = usage_log.log_call(
-                    question, result=result, documents=visible
-                )
-                st.session_state.last_result = result
-                st.session_state.last_error = None
-                # Counted only on a call that actually reached the model. A
-                # denied question costs nothing, so it must not consume budget.
-                if is_public and not result.get("access_denied"):
-                    st.session_state.public_calls = (
-                        st.session_state.get("public_calls", 0) + 1
-                    )
+    with st.spinner("Asking Claude..."):
+        try:
+            result = core.ask(
+                question,
+                core.build_context(visible),
+                get_bedrock_client(),
+                role=role,
+                max_tokens=(spend_guard.PUBLIC_MAX_OUTPUT_TOKENS
+                            if is_public else None),
+            )
+        except Exception as e:
+            log_id = usage_log.log_call(question, error=e, documents=visible)
+            return {"result": None, "error": str(e), "log_id": log_id,
+                    "budget_message": None}
 
-if is_public:
-    used = st.session_state.get("public_calls", 0)
-    budget_slot.caption(
-        f"Public demo budget: {spend_guard.PUBLIC_SESSION_LIMIT - used} left "
-        f"this session, {spend_guard.daily_remaining()} left today."
-    )
+    log_id = usage_log.log_call(question, result=result, documents=visible)
+    # Counted only on a call that actually reached the model. A denied
+    # question costs nothing, so it must not consume budget.
+    if is_public and not result.get("access_denied"):
+        st.session_state.public_calls = st.session_state.get("public_calls", 0) + 1
+    return {"result": result, "error": None, "log_id": log_id,
+            "budget_message": None}
 
-if st.session_state.get("budget_message"):
-    st.warning(st.session_state.budget_message)
 
-# Everything below is driven by session state rather than the Ask block, so it
-# survives the rerun that clicking a feedback button triggers. Rendered inside
-# the Ask block, the answer and its buttons would disappear on the first click.
-if st.session_state.get("last_error"):
-    st.error(f"Request failed: {st.session_state.last_error}")
-
-last_result = st.session_state.get("last_result")
-if last_result:
-    if last_result.get("access_denied"):
+def show_result(result: dict) -> None:
+    """Render one core.ask result: an answer, or the access notice."""
+    if result.get("access_denied"):
         # Deliberately not rendered as an answer. A refusal is the assistant
         # reporting on the documents; this is the system reporting on the
         # user's permissions. Showing them identically is the silent failure
         # this part exists to remove, so they differ in wording and in shape.
-        st.warning(last_result["answer"])
+        st.warning(result["answer"])
         st.caption("No model call was made for this question.")
-    else:
-        render_answer(last_result["answer"])
-        # Bedrock's inputTokens excludes cached tokens, so showing it alone
-        # understated the prompt by the whole cached corpus.
-        cached = last_result.get("cache_read_tokens") or 0
-        st.caption(
-            f"{last_result['latency_ms']} ms · "
-            f"{last_result['total_input_tokens']:,} in"
-            + (f" ({cached:,} from cache)" if cached else "")
-            + f" / {last_result['output_tokens']:,} out tokens"
+        return
+    render_answer(result["answer"])
+    # Bedrock's inputTokens excludes cached tokens, so showing it alone
+    # understated the prompt by the whole cached corpus.
+    cached = result.get("cache_read_tokens") or 0
+    st.caption(
+        f"{result['latency_ms']} ms · "
+        f"{result['total_input_tokens']:,} in"
+        + (f" ({cached:,} from cache)" if cached else "")
+        + f" / {result['output_tokens']:,} out tokens"
+    )
+
+
+# Budget lines are reserved where they appear and filled at the very end of
+# the script. Filled in place, a line would be computed before a click further
+# down - in either tab - was counted, and run one question behind.
+budget_slots = []
+
+ask_tab, training_tab = st.tabs(["Ask Claude", "Training"])
+
+with ask_tab:
+    question = st.text_area("Question")
+    budget_slots.append(st.empty())
+
+    if st.button("Ask") and question.strip():
+        st.session_state.feedback = None
+        out = run_ask(question)
+        st.session_state.last_result = out["result"]
+        st.session_state.last_error = out["error"]
+        st.session_state.last_log_id = out["log_id"]
+        st.session_state.budget_message = out["budget_message"]
+
+    if st.session_state.get("budget_message"):
+        st.warning(st.session_state.budget_message)
+
+    # Everything below is driven by session state rather than the Ask block, so
+    # it survives the rerun that clicking a feedback button triggers. Rendered
+    # inside the Ask block, the answer and its buttons would disappear on the
+    # first click.
+    if st.session_state.get("last_error"):
+        st.error(f"Request failed: {st.session_state.last_error}")
+
+    last_result = st.session_state.get("last_result")
+    if last_result:
+        show_result(last_result)
+
+        log_id = st.session_state.get("last_log_id")
+        if log_id is not None:
+            up, down, _ = st.columns([1, 1, 10])
+            if up.button("👍", key="feedback_up"):
+                usage_log.record_feedback(log_id, "up")
+                st.session_state.feedback = "up"
+            if down.button("👎", key="feedback_down"):
+                usage_log.record_feedback(log_id, "down")
+                st.session_state.feedback = "down"
+
+            if st.session_state.get("feedback"):
+                st.caption(
+                    f"Feedback recorded: {st.session_state.feedback} (row {log_id})"
+                )
+
+
+# --------------------------------------------------------------------------
+# Training
+#
+# Module content lives in training_modules.json and the checks in training.py;
+# this section only lays them out and records attempts. A task is a real
+# question through run_ask, so it is capped and logged like any other. A
+# rubric-graded written answer is a model call of its own: it is checked
+# against the same public cap first and counted against it after.
+# --------------------------------------------------------------------------
+
+@st.cache_data
+def load_course() -> dict:
+    return training.load_course()
+
+
+course = load_course()
+course_ids = training.module_ids(course)
+visible_names = [name for name, _ in visible]
+
+if "training_session_id" not in st.session_state:
+    # Random per browser session - counts learners without identifying anyone.
+    st.session_state.training_session_id = uuid.uuid4().hex
+progress = st.session_state.setdefault("training", {})
+
+
+def module_state(module_id: str) -> dict:
+    return progress.setdefault(module_id, {
+        "task_passed": False, "task_result": None, "task_message": None,
+        "task_pass_result": None, "reflection": None, "reflection_passed": False,
+        "budget_message": None, "error": None,
+    })
+
+
+def module_done(module_id: str) -> bool:
+    s = module_state(module_id)
+    return s["task_passed"] and s["reflection_passed"]
+
+
+def log_attempt(module_id, step, passed, graded_by, detail=None, metrics=None,
+                error=None):
+    init_usage_db()
+    usage_log.log_training(
+        st.session_state.training_session_id, role, module_id, step, passed,
+        graded_by, detail=detail, metrics=metrics, error=error,
+    )
+
+
+with training_tab:
+    st.subheader(course["course"])
+    st.caption(course["intro"])
+    n_done = sum(module_done(m) for m in course_ids)
+    st.progress(n_done / len(course_ids),
+                text=f"{n_done} of {len(course_ids)} modules complete")
+    budget_slots.append(st.empty())
+
+    titles = {m["id"]: m["title"] for m in course["modules"]}
+    module_id = st.radio(
+        "Module",
+        course_ids,
+        format_func=lambda m: (f"{'✅' if module_done(m) else '○'} "
+                               f"{course_ids.index(m) + 1}. {titles[m]}"),
+        key="training_module",
+    )
+    module = next(m for m in course["modules"] if m["id"] == module_id)
+    state = module_state(module_id)
+    was_done = module_done(module_id)
+
+    st.markdown(f"#### {module['title']}")
+    st.markdown(module["lesson"])
+
+    if module["check"] == "access_denied" and role == core.ROLE_ADMIN:
+        st.info(
+            "Admin can see every document, so no question can raise the access "
+            "notice for this account. Sign out to take this module on the "
+            "public tier."
         )
 
-    log_id = st.session_state.get("last_log_id")
-    if log_id is not None:
-        up, down, _ = st.columns([1, 1, 10])
-        if up.button("👍", key="feedback_up"):
-            usage_log.record_feedback(log_id, "up")
-            st.session_state.feedback = "up"
-        if down.button("👎", key="feedback_down"):
-            usage_log.record_feedback(log_id, "down")
-            st.session_state.feedback = "down"
+    st.markdown(f"**Task.** {module['task']}")
+    task_q = st.text_area("Your question", key=f"task_q_{module_id}",
+                          placeholder=f"For example: {module['suggestion']}")
+    if st.button("Ask", key=f"task_ask_{module_id}") and task_q.strip():
+        out = run_ask(task_q)
+        state["budget_message"] = out["budget_message"]
+        state["error"] = out["error"]
+        state["task_result"] = out["result"]
+        if out["result"] is not None:
+            ok, msg = training.check_task(module["check"], out["result"], visible_names)
+            state["task_message"] = (ok, msg)
+            log_attempt(module_id, "task", ok, "code",
+                        detail={"question": task_q, "check": module["check"],
+                                "explanation": msg})
+            if ok:
+                # Sticky: a later failed try does not undo a pass, and the
+                # passing result is kept because the quote check needs the
+                # documents that answer cited.
+                state["task_passed"] = True
+                state["task_pass_result"] = out["result"]
 
-        if st.session_state.get("feedback"):
-            st.caption(
-                f"Feedback recorded: {st.session_state.feedback} (row {log_id})"
-            )
+    if state["budget_message"]:
+        st.warning(state["budget_message"])
+    if state["error"]:
+        st.error(f"Request failed: {state['error']}")
+    if state["task_result"] is not None:
+        show_result(state["task_result"])
+        ok, msg = state["task_message"]
+        (st.success if ok else st.warning)(f"{'Task passed' if ok else 'Not yet'}: {msg}")
+
+    if state["task_passed"]:
+        st.markdown(f"**Written answer.** {module['reflection']}")
+        cited = []
+        if module["grading"] == "quote":
+            pass_result = state["task_pass_result"]
+            cited = core.cited_docs(pass_result["answer"], visible_names)
+            texts = dict(visible)
+            for name in cited:
+                with st.expander(f"Open {name}"):
+                    st.markdown(texts[name].replace("$", r"\$"))
+
+        reflection = st.text_area("Your answer", key=f"reflection_{module_id}")
+        label = "Check my quote" if module["grading"] == "quote" else "Submit for grading"
+        if st.button(label, key=f"reflect_{module_id}") and reflection.strip():
+            if module["grading"] == "quote":
+                ok, msg = training.check_quote(reflection, cited, visible)
+                state["reflection"] = {"passed": ok, "message": msg, "criteria": [],
+                                       "feedback": ""}
+                log_attempt(module_id, "reflection", ok, "code",
+                            detail={"cited": cited, "message": msg})
+            else:
+                reason = training.precheck_reflection(reflection)
+                allowed, why = (True, "")
+                if reason is None and is_public:
+                    allowed, why = spend_guard.check_public(
+                        st.session_state.get("public_calls", 0))
+                if reason is not None:
+                    ok = False
+                    state["reflection"] = {"passed": False, "message": reason,
+                                           "criteria": [], "feedback": ""}
+                    log_attempt(module_id, "reflection", False, "code",
+                                detail={"precheck": reason})
+                elif not allowed:
+                    ok = False
+                    state["reflection"] = {"passed": False, "message": why,
+                                           "criteria": [], "feedback": ""}
+                else:
+                    with st.spinner("Claude is grading your answer..."):
+                        try:
+                            g = training.grade_reflection(module, reflection,
+                                                          get_bedrock_client())
+                        except Exception as e:
+                            g = {"passed": False, "criteria": [], "feedback": "",
+                                 "error": str(e)}
+                    if is_public:
+                        st.session_state.public_calls = (
+                            st.session_state.get("public_calls", 0) + 1)
+                    ok = g["passed"]
+                    message = (f"Grading failed, so this attempt was not counted "
+                               f"as a pass: {g['error']}" if g["error"] else
+                               "Passed - every criterion met." if ok else
+                               "Not yet - see what was missing below.")
+                    state["reflection"] = {"passed": ok, "message": message,
+                                           "criteria": g["criteria"],
+                                           "feedback": g["feedback"]}
+                    log_attempt(module_id, "reflection", ok, "model",
+                                detail={"criteria": g["criteria"],
+                                        "feedback": g["feedback"]},
+                                metrics=g, error=g["error"])
+            if ok:
+                state["reflection_passed"] = True
+
+        r = state["reflection"]
+        if r:
+            (st.success if r["passed"] else st.warning)(r["message"])
+            for c in r["criteria"]:
+                st.markdown(f"{'✅' if c['met'] else '❌'} {c['label']}"
+                            + (f' — *"{c["evidence"]}"*' if c["met"] else ""))
+            if r["feedback"]:
+                st.caption(f"Feedback from Claude: {r['feedback']}")
+
+    if module_done(module_id) != was_done:
+        # The progress bar and the module checkmarks above were drawn before
+        # this click completed the module. Every result shown here lives in
+        # session state, so a rerun redraws them current and loses nothing.
+        st.rerun()
+    if module_done(module_id):
+        st.success("Module complete.")
+
+
+if is_public:
+    used = st.session_state.get("public_calls", 0)
+    for slot in budget_slots:
+        slot.caption(
+            f"Public demo budget: {spend_guard.PUBLIC_SESSION_LIMIT - used} left "
+            f"this session, {spend_guard.daily_remaining()} left today."
+        )
 
 
 # Rendered last on purpose. st.sidebar places content in the sidebar wherever
@@ -405,6 +610,10 @@ with st.sidebar:
             "Avg latency",
             f"{usage['avg_ms']:,.0f} ms" if usage["avg_ms"] is not None else "—",
         )
+    t = stats.training_summary(course_ids)
+    if t["learners"]:
+        st.metric("Training: courses completed",
+                  f"{t['course_completions']} of {t['learners']} learners")
 
 
 # --------------------------------------------------------------------------

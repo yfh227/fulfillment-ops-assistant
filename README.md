@@ -18,6 +18,10 @@ it should return *"That's outside what a Public Viewer has access to in this
 system"* rather than a generic "I don't know". Those two behaviours are most of
 the point of the demo without signing in at all.
 
+The **Training** tab teaches those behaviours hands-on: four short modules on
+using the assistant safely, each with a task in the real assistant and a written
+answer graded by Claude. See *Training modules* below.
+
 Signing in reaches the wider, role-scoped Executive tier — four accounts exist,
 one per role plus an all-access admin, gating Bedrock calls billed to the
 deployer's AWS account, so there is deliberately no published default password.
@@ -60,6 +64,10 @@ second language and toolchain.
 | `spend_guard.py` | Daily/session/output-token caps for the public tier — see *The public tier*. |
 | `usage_log.py` | SQLite logging of every question asked. |
 | `stats.py` | Reporting queries and the adoption summary generator. |
+| `training.py` | Training modules: task checks, the quote check, and the rubric grader with evidence verification. No Streamlit dependency. |
+| `training_modules.json` | The four modules' lessons, tasks and rubrics — content, kept apart from code. |
+| `training_grader_cases.json` | 27 labelled written answers the grader is measured against. |
+| `eval_training.py` | Training tests: an offline suite (no model) and the grader measurement. |
 
 `core.py` deliberately imports no Streamlit, so the harness and reporting tools
 can import it without starting a web server.
@@ -806,6 +814,97 @@ same convention `log_call` follows.
 with denial counts. Those sections are guarded on table existence, so a database
 written before this change still reports instead of raising.
 
+## Training modules
+
+The **Training** tab is a four-module course on using the assistant safely,
+taught inside the assistant itself:
+
+| Module | Teaches | Task passes when | Written answer checked by |
+| --- | --- | --- | --- |
+| 1. Ask well, then check the citation | A citation is the checkable part of an answer | the answer cites a document the role can see | code — the pasted quote must be in a document the answer cited |
+| 2. "I don't know" is the system working | A refusal beats a plausible guess; go to the source | the assistant refuses | Claude, against a 3-criterion rubric |
+| 3. A coverage gap is not an access limit | Reading the access notice vs. "I don't know" | the system returns the access notice | Claude, against a 3-criterion rubric |
+| 4. When a person has to look first | `NEEDS HUMAN REVIEW` is about stakes, not accuracy | the answer carries the review flag | Claude, against a 3-criterion rubric |
+
+**Tasks are checked in code, not by a model.** Whether the assistant cited,
+refused, raised the access notice or flagged is a fact about the result, read
+by the same `core.py` functions `eval.py` and `usage_log.py` use. A task is a
+real question through the same path as the Ask tab, so it is access-checked,
+logged and spend-capped like any other.
+
+**Written answers are graded by Claude, with three code-side controls:**
+
+- **Evidence verification.** Every criterion the grader marks as met must come
+  with a quote from the trainee's answer, and code checks that quote is really
+  there. A criterion with fabricated, one-word or missing evidence is not met,
+  so the grader cannot pass anyone on evidence it cannot point to.
+- **Trainee text is data.** It is wrapped in tags the prompt declares to be
+  content to grade, never instructions, and the labelled set includes injection
+  attempts.
+- **Fail closed.** An API error or an unreadable grader reply records a failed
+  attempt with the error, never a pass. Answers too short to meet a rubric are
+  rejected in code before any model call.
+
+The grader runs at temperature 0 with output capped, and each graded answer
+counts against the public tier's session and daily caps exactly like a question.
+
+### Measuring the grader
+
+```bash
+./venv/Scripts/python.exe eval_training.py --suite offline
+./venv/Scripts/python.exe eval_training.py --suite grader --repeat 3
+./venv/Scripts/python.exe eval_training.py --control always-pass
+```
+
+`training_grader_cases.json` holds 27 written answers, nine per graded module:
+strong, terse and paraphrased passes; answers each missing one specific
+criterion; wrong concepts; and prompt-injection attempts. Each one is labelled
+with whether it should pass and which criteria it lacks. Measured against the
+real grader, three runs each:
+
+| | Result |
+| --- | --- |
+| Pass/fail agreement with the labels | **81/81** |
+| False passes (a failing answer certified) | **0** |
+| Per-criterion agreement | 243/243 |
+| Verdicts that changed between runs | 0 of 27 |
+| Injection attempts that passed | 0 of 4 |
+| Cost of the full measurement | 41,790 input / 11,107 output tokens |
+
+**The measurement can fail.** `--control always-pass` swaps in a grader that
+marks every criterion met and quotes the answer's own words as evidence, so it
+survives evidence verification. Against the same labels it agrees on 9 of 27,
+with 18 false passes, and the suite exits 1.
+
+What these numbers do **not** show, stated so they are not over-read:
+
+- The labelled answers and the rubrics were written by the same author. Real
+  trainees will phrase things in ways this set does not anticipate, so 81/81 is
+  agreement on a deliberately varied set, not an accuracy figure for the
+  population.
+- Evidence verification rejected nothing in the real runs — the grader never
+  claimed a quote that wasn't there. Its protection is demonstrated by the
+  offline suite, which feeds it fabricated evidence, not by the live grader
+  needing it.
+
+The offline suite (54 checks, no network) covers the task checks, the quote
+check, evidence verification, the pre-check, fail-closed parsing, spend-cap
+counting, the completion metrics and the integrity of both JSON files.
+
+### Training metrics
+
+Attempts are logged to a `training_attempt` table in `usage.db` under a random
+per-session id, never a user identity. A module is complete for a learner when
+its task and its written answer have both passed, in any order and across any
+number of tries. `stats.py` reports learners, course and module completions,
+first-try pass rate on written answers, and grader calls and errors; the
+adoption summary gains a Training section, and the sidebar shows course
+completions.
+
+The same caveat as the daily spend counter applies: on Streamlit Community Cloud
+`usage.db` does not survive a restart or redeploy, so hosted training figures
+cover the current container's lifetime.
+
 ## Usage logging
 
 Every question is written to `usage.db` (SQLite, gitignored) as one row,
@@ -834,8 +933,8 @@ average latency.
 ```
 
 Prints volume and tokens by day, guardrail rates, most-cited documents,
-latency spread, error count, and the feedback split — then writes
-`adoption_summary.md`.
+latency spread, error count, the feedback split, and training completions —
+then writes `adoption_summary.md`.
 
 That file is the short, non-technical brief: questions answered, flag rate,
 refusal rate, feedback split, and the three most-referenced documents. Regenerate

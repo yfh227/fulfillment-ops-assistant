@@ -55,15 +55,20 @@ PUBLIC_SESSION_LIMIT = 10
 # strategy reduces, so it is capped directly.
 PUBLIC_MAX_OUTPUT_TOKENS = 600
 
-# Both tables represent Bedrock spend, so both count against the cap.
+# Every table that records a Bedrock call counts against the cap. Training
+# attempts count only where the grader made its own call (graded_by = 'model');
+# a task attempt's question is already counted in `usage`, and a code-checked
+# step costs nothing.
 _COUNT = """
-SELECT (SELECT COUNT(*) FROM {table} WHERE substr(timestamp, 1, 10) = ?) AS n
+SELECT (SELECT COUNT(*) FROM {table} WHERE substr(timestamp, 1, 10) = ?{extra}) AS n
 """
 
 
-def _count_table(conn: sqlite3.Connection, table: str, day: str) -> int:
+def _count_table(conn: sqlite3.Connection, table: str, day: str,
+                 extra: str = "") -> int:
     try:
-        return conn.execute(_COUNT.format(table=table), (day,)).fetchone()[0]
+        return conn.execute(_COUNT.format(table=table, extra=extra),
+                            (day,)).fetchone()[0]
     except sqlite3.OperationalError:
         # Table not created yet - that is zero calls, not an error.
         return 0
@@ -72,7 +77,7 @@ def _count_table(conn: sqlite3.Connection, table: str, day: str) -> int:
 def calls_today(db_path: Path = None) -> int:
     """Bedrock-billed calls recorded for the current UTC day.
 
-    Counts asks and agent runs together. Returns 0 when the database does not
+    Counts asks, agent runs and model-graded training attempts. Returns 0 when the database does not
     exist yet, which is the correct reading of "no calls recorded", not a
     failure to be worked around.
     """
@@ -82,7 +87,10 @@ def calls_today(db_path: Path = None) -> int:
     day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     try:
         with sqlite3.connect(db_path) as conn:
-            return _count_table(conn, "usage", day) + _count_table(conn, "agent_run", day)
+            return (_count_table(conn, "usage", day)
+                    + _count_table(conn, "agent_run", day)
+                    + _count_table(conn, "training_attempt", day,
+                                   " AND graded_by = 'model'"))
     except sqlite3.Error:
         # An unreadable database is treated as the cap being reached rather than
         # as zero. This fails closed on purpose: the failure mode of guessing

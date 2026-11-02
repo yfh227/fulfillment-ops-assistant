@@ -1,0 +1,61 @@
+{
+  "course": "Using the Ops Assistant safely",
+  "intro": "Four short modules on working with an AI assistant you can rely on: checking what it cites, reading its refusals, telling a coverage gap from an access limit, and knowing when a person has to look before anyone acts. Each module has a hands-on task in the real assistant and a short written answer. The task is checked in code against what the assistant actually did; the written answer is graded by Claude against a fixed rubric.",
+  "modules": [
+    {
+      "id": "cite",
+      "title": "Ask well, then check the citation",
+      "lesson": "Every answer the assistant gives names the document it came from, in brackets: `(00_company_profile.md)`. That citation is the part you can check. An answer with no citation, or one whose cited document doesn't say what the answer claims, should not be relied on however confident it sounds.\n\nAsk something specific, so the answer points at one place you can go and read. Then open that document and find the sentence the answer rests on. If you can't find it, the answer isn't supported, whatever it says.",
+      "task": "Ask a question the documents you can see should answer. The task passes when the assistant answers it (no refusal, no access notice) and cites at least one document.",
+      "suggestion": "Which facilities does Meridian operate?",
+      "check": "cited_answer",
+      "reflection": "Open the document the answer cited (below) and paste the exact sentence or table row that supports the answer.",
+      "grading": "quote"
+    },
+    {
+      "id": "refusal",
+      "title": "\"I don't know\" is the system working",
+      "lesson": "The assistant is instructed to answer only from its documents, and to say \"I don't know\" plainly when they don't cover a question. That is not a fault. A fluent, plausible answer to a question the documents don't cover would have to be invented, and an invented answer that sounds right is the one most likely to be acted on.\n\nWhen you get \"I don't know\", don't rephrase until it gives you something. Take the question to the source that owns the answer: the system of record, or the person responsible for it.",
+      "task": "Ask something the documents don't cover. The task passes when the assistant declines to answer from its documents.",
+      "suggestion": "Who is Meridian's CEO?",
+      "check": "refused",
+      "reflection": "In your own words: why is the assistant's \"I don't know\" more useful here than a confident answer would have been, and what should you do next to get the real answer?",
+      "grading": "rubric",
+      "rubric": [
+        {"id": "risk", "label": "Explains the risk of a guess", "criterion": "Explains that a confident or plausible answer would have to be guessed or invented, and could be wrong yet still be believed or acted on."},
+        {"id": "gap", "label": "Locates the gap in the documents", "criterion": "Recognises that the refusal reflects what the documents contain (the information isn't in them), not a malfunction of the assistant."},
+        {"id": "next", "label": "Names a sound next step", "criterion": "Names a next step that goes to an authoritative source - the relevant system, document owner, manager or responsible person - rather than rewording the question until the assistant produces an answer."}
+      ]
+    },
+    {
+      "id": "access",
+      "title": "A coverage gap is not an access limit",
+      "lesson": "Two different messages can stop you, and they mean different things.\n\n- **\"I don't know\"** comes from the assistant: the documents it was given don't answer the question.\n- **\"That's outside what a … has access to\"** comes from the system, before the assistant is even asked: the answer exists, in a document your role isn't permitted to see.\n\nThe right response differs. For a gap, go to the source that owns the answer. For an access limit, go to someone whose role covers it, or request access through the proper channel - never try to word your way around a restriction.\n\nOne honest caveat: the system only shows the access notice when it's confident the answer sits in a restricted document. When it isn't sure, you get \"I don't know\" instead. On a limited tier, \"I don't know\" can still mean the answer is somewhere you can't see.",
+      "task": "Ask about something another team's documents cover. The task passes when the system returns its access notice.",
+      "suggestion": "What is the storage rate per pallet?",
+      "check": "access_denied",
+      "reflection": "You got an access notice, not an \"I don't know\". What does each of those two messages tell you, and what should you do differently in each case?",
+      "grading": "rubric",
+      "rubric": [
+        {"id": "notice", "label": "Reads the access notice correctly", "criterion": "States that the access notice means the information exists (or likely exists) but the user's role is not permitted to see it."},
+        {"id": "gap", "label": "Reads \"I don't know\" correctly", "criterion": "States that \"I don't know\" means the documents available do not cover the question."},
+        {"id": "action", "label": "Responds to the restriction properly", "criterion": "For the access notice, says to go to someone with the right role or request access through a proper channel, and does not suggest rephrasing or otherwise working around the restriction."}
+      ]
+    },
+    {
+      "id": "review",
+      "title": "When a person has to look first",
+      "lesson": "Some answers end with **⚠️ NEEDS HUMAN REVIEW**. The assistant adds it whenever a question touches money (rates, invoices, disputes, charges) or a client (anything said to them, promised to them, or credited to them), even when it is confident and the documents answer the question fully.\n\nThe flag is about stakes, not accuracy. It doesn't mean the answer is wrong. It means a person accountable for that client or that money checks the answer against the source before it is sent, promised or acted on. The assistant never commits anything itself; in the agent version, escalations it drafts sit as `DRAFT_PENDING_APPROVAL` until a person approves them.",
+      "task": "Ask something that involves a client commitment or money, which the documents you can see do answer. The task passes when the answer carries the human-review flag.",
+      "suggestion": "Which service tier should we promise a new client shipping 20,000 orders a month?",
+      "check": "review_flagged",
+      "reflection": "Your answer carried NEEDS HUMAN REVIEW. What made it get flagged, and what has to happen before anyone acts on it?",
+      "grading": "rubric",
+      "rubric": [
+        {"id": "trigger", "label": "Identifies the trigger", "criterion": "Identifies that the flag was triggered because the question involves a client commitment or communication, or money (rates, billing, charges)."},
+        {"id": "check", "label": "Puts a person in the loop", "criterion": "Says that a responsible person must check the answer against the source documents before it is sent to a client, promised, or acted on."},
+        {"id": "stakes", "label": "Separates stakes from accuracy", "criterion": "Recognises that the flag reflects what is at stake rather than meaning the answer is wrong or low-confidence."}
+      ]
+    }
+  ]
+}
