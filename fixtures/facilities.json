@@ -1,0 +1,17 @@
+[
+  {
+    "facility": "Columbus",
+    "shipper_name": "Meridian Fulfillment Co. - Columbus",
+    "address": "6100 Logistics Pkwy, Columbus, OH 43217"
+  },
+  {
+    "facility": "Reno",
+    "shipper_name": "Meridian Fulfillment Co. - Reno",
+    "address": "940 Sierra Commerce Way, Reno, NV 89502"
+  },
+  {
+    "facility": "Richmond",
+    "shipper_name": "Meridian Fulfillment Co. - Richmond",
+    "address": "3300 Meridian Industrial Dr, Richmond, VA 23234"
+  }
+]

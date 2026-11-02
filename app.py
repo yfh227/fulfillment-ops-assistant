@@ -635,7 +635,7 @@ st.divider()
 st.markdown(
     "**Companion project — "
     "[fulfillment-ops-mcp](https://github.com/yfh227/fulfillment-ops-mcp)**  \n"
-    "A Model Context Protocol server in TypeScript exposing six role-mapped "
+    "A Model Context Protocol server in TypeScript exposing seven role-mapped "
     "tools over stdio, so an AI client like Claude Desktop can call them "
     "directly. Each role sees only its permitted tools, and every tool checks "
     "the role again before returning data."

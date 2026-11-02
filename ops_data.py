@@ -20,6 +20,10 @@ INVENTORY_PATH = FIXTURES / "inventory.json"
 INVOICES_PATH = FIXTURES / "invoices.json"
 RATE_SCHEDULES_PATH = FIXTURES / "rate_schedules.json"
 CAPACITY_PATH = FIXTURES / "capacity.json"
+# Shipper names and addresses per facility, for shipping documents. Fictional,
+# like every other fixture: the company profile names the three cities, and the
+# street addresses were written for this project.
+FACILITIES_PATH = FIXTURES / "facilities.json"
 
 
 def _load(path: Path, key: str) -> dict:
@@ -55,6 +59,11 @@ def _capacity() -> dict:
     return {k.upper(): v for k, v in _load(CAPACITY_PATH, "facility").items()}
 
 
+@lru_cache(maxsize=1)
+def _facilities() -> dict:
+    return {k.upper(): v for k, v in _load(FACILITIES_PATH, "facility").items()}
+
+
 def get_order(order_id: str) -> dict | None:
     """One order record, or None. Returns a copy - the cache is shared."""
     row = _orders().get((order_id or "").strip().upper())
@@ -82,6 +91,12 @@ def get_rate_schedule(client: str) -> dict | None:
 def get_capacity(facility: str) -> dict | None:
     """One facility's capacity position, or None. Returns a copy."""
     row = _capacity().get((facility or "").strip().upper())
+    return dict(row) if row else None
+
+
+def get_facility(facility: str) -> dict | None:
+    """One facility's shipper name and address, or None. Returns a copy."""
+    row = _facilities().get((facility or "").strip().upper())
     return dict(row) if row else None
 
 

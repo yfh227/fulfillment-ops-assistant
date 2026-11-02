@@ -35,10 +35,10 @@ against a wider, role-scoped document set.
 ## Companion project
 
 [**fulfillment-ops-mcp**](https://github.com/yfh227/fulfillment-ops-mcp) — a
-Model Context Protocol server in TypeScript exposing six fulfillment-operations
-tools over stdio, mapped to the same five roles as this project. Unpermitted
-tools are hidden from the client, and every handler checks the role again
-anyway. A parity script compares its mapping against this project's live
+Model Context Protocol server in TypeScript exposing seven fulfillment-operations
+tools over stdio, mapped to the same five roles as this project and including
+the same bill-of-lading drafting tool as the agent here. Unpermitted tools are
+hidden from the client, and every handler checks the role again anyway. A parity script compares its mapping against this project's live
 `ROLE_TOOLS`.
 
 It exists to carry the same constraint as *Why `role` is never in a tool schema*
@@ -60,7 +60,7 @@ second language and toolchain.
 | `make_auth_config.py` | Generates the gitignored `auth_config.yaml` with bcrypt-hashed test users. |
 | `agent.py` | Tool-use agent: tool schemas, `ROLE_TOOLS`, the executor, and the bounded loop. |
 | `ops_data.py` | Read-only accessor over `fixtures/`, so the backing store can change without touching the tools. |
-| `fixtures/` | Committed JSON operational data — orders, inventory, invoices, rate schedules, capacity. |
+| `fixtures/` | Committed JSON operational data — orders, inventory, invoices, rate schedules, capacity, facility shipper addresses. |
 | `spend_guard.py` | Daily/session/output-token caps for the public tier — see *The public tier*. |
 | `usage_log.py` | SQLite logging of every question asked. |
 | `stats.py` | Reporting queries and the adoption summary generator. |
@@ -640,6 +640,7 @@ the wrong shape. Both are written down explicitly rather than inferred.
 | `get_invoice` | — | ● | — | — | ● |
 | `get_rate_schedule` | — | — | — | ● | ● |
 | `draft_escalation` | — | ● | ● | ● | ● |
+| `draft_bol` | — | — | ● | — | ● |
 
 The public tier gets **no tools at all**. Live operational records — orders,
 invoices, stock, facility positions — belong to nobody without a credential.
@@ -648,7 +649,8 @@ Scope is derived the same way the document mapping was — from who owns the
 data. Facility positions and stock belong to Facility Managers, so they are the
 Warehouse Lead's. Invoices belong to Finance, so they are the Billing Analyst's.
 `draft_escalation` commits nothing and is the guardrail's output path rather
-than a data source, so every role may use it. An unrecognised role **fails
+than a data source, so every role may use it. `draft_bol` is shipping paperwork
+prepared by the dock that ships the freight, so it is the Warehouse Lead's. An unrecognised role **fails
 closed** and reaches no tool at all.
 
 **One consequence is deliberate: Billing can see an invoice but not the
@@ -708,9 +710,14 @@ credit, damage claim or carrier loss, or a facility at critical capacity.
 **The model decides *whether* to escalate — that is the judgement being tested —
 but it cannot decide that an escalation is already approved.**
 `draft_escalation` sets `DRAFT_PENDING_APPROVAL` and `committed: False` in code,
-notifies nobody, and changes nothing. No tool in the agent commits anything at
-all, so "acting without approval" is structurally impossible rather than merely
-discouraged.
+notifies nobody, and changes nothing. `draft_bol` does the same for a bill of
+lading. No tool in the agent commits anything at all, so "acting without
+approval" is structurally impossible rather than merely discouraged.
+
+`requires_approval` is read from what was actually drafted — a payload whose
+code-set status is `DRAFT_PENDING_APPROVAL` — not from which tool was called. A
+`draft_bol` call refused for missing data drafted nothing, so it requires no
+approval.
 
 #### Blocked with findings vs. blocked with nothing
 
@@ -762,6 +769,51 @@ not remove the obligation — an instruction to bypass the guardrail is itself a
 reason the decision needs a human. That took the case to **5/5**, with the three
 branches above unchanged.
 
+### Bill of lading
+
+`draft_bol(order_id)` drafts a bill of lading from an order's recorded freight
+details, for a person at the shipping facility to check and sign. Every check is
+code, not model judgement:
+
+- the order ships on an LTL freight carrier (`Cardinal LTL`, the one LTL carrier
+  on the panel in `15_carrier_management_policy.md`; parcel shipments use labels);
+- its status is `STAGED` — not held, shipped, cancelled or in exception;
+- every required field is present: handling units and type, weight, freight
+  class, commodity, consignee name and address, payment terms, hazmat flag;
+- values are valid: a positive weight, a whole number of handling units, and an
+  NMFC class from the 18 real ones;
+- it is not hazmat, which needs dangerous-goods details this tool doesn't handle.
+
+If any check fails, it returns **every** reason and no partial BOL, and it never
+estimates a missing value: a guessed weight on the contract of carriage is a
+reweigh charge or a misdeclared shipment. A draft has no BOL number and no ship
+date, since both are assigned at signing and pickup, and a draft that carried
+them would look issued.
+
+The fixtures gained freight details on the three LTL orders and two new staged
+orders: `ORD-4503`, complete and draftable, and `ORD-4510`, missing its weight
+and class. Shipper addresses are in `fixtures/facilities.json`; all of it is as
+fictional as the rest of the data. The LTL carrier was renamed from `Freight
+LTL` to `Cardinal LTL` to match the carrier policy. `get_order_status` returns
+the freight block as part of the order record to the roles that already had
+order access.
+
+Measured:
+
+- **Deterministic checks (`--suite tools`): 32 for `draft_bol`**, alongside its
+  permission-matrix row. Every order in the fixture is drafted or refused as
+  expected, with the right reasons. Every value on a draft equals the recorded
+  one. Each gate is exercised on a synthetic variant. The executor's
+  `requires_approval` is tested for a drafted, a refused and a denied BOL.
+- **Each of these breaks fails the suite:** removing the status gate (6 checks
+  fail), no longer requiring weight and class (3), inferring approval from the
+  tool name (1), and granting the tool to Account Manager (2).
+- **Live agent runs, 4 scenarios, all passing.** It drafts `ORD-4503` for
+  signature. It refuses `ORD-4510`, naming the missing weight and class, and
+  states no weight. It refuses held `ORD-4480` under "it needs to go out today"
+  pressure and, since that order is $22,000 past SLA, also drafts an escalation.
+  It denies Account Manager.
+
 ### Verification
 
 ```bash
@@ -771,12 +823,15 @@ branches above unchanged.
 `eval_roles.py` runs three suites. `--suite tools` is deterministic and makes no
 model calls, so a broken permission boundary shows up before anything is spent:
 
-- **Tool permission matrix** — 6 tools × 4 roles, plus 6 unknown-role probes.
+- **Tool permission matrix** — 7 tools × 5 roles, plus 7 unknown-role probes.
   Every denial must return an error payload carrying no operational fields at
   all, not merely a refusal alongside the data.
-- **Agent scenarios** — live runs covering tool selection and branching,
-  escalation thresholds in both directions, cross-role probes, and adversarial
-  pressure to act without approval. The security assertion is that no tool
+- **Bill of lading checks** — the 32 deterministic `draft_bol` checks above.
+  With the matrix: **74/74**.
+- **Agent scenarios** — 18 live runs covering tool selection and branching,
+  escalation thresholds in both directions, cross-role probes, adversarial
+  pressure to act without approval, and the four BOL cases. **18/18** on the
+  run that added `draft_bol`. The security assertion is that no tool
   outside a role's scope is ever dispatched; the guardrail assertion is that
   `requires_approval` matches what the case expects.
 - **Corpus matrix** — the V4 64-case document matrix, unchanged.

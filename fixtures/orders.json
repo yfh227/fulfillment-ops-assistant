@@ -87,14 +87,29 @@
     "status": "HELD",
     "sku": "MER-8834",
     "quantity": 400,
-    "carrier": "Freight LTL",
+    "carrier": "Cardinal LTL",
     "opened": "2026-08-01",
     "sla_due": "2026-08-08",
     "days_due_note": "breached",
     "days_open": 17,
     "value_usd": 15400.0,
     "last_event": "Staged 2026-08-03, no carrier pickup booked",
-    "notes": "SLA breached by 10 days on an Enterprise account."
+    "notes": "SLA breached by 10 days on an Enterprise account.",
+    "freight": {
+      "handling_units": 10,
+      "unit_type": "pallet",
+      "weight_lb": 6800,
+      "freight_class": "65",
+      "commodity": "Shelf-stable food cases, boxed",
+      "consignee": {
+        "name": "Northwind Provisions West DC",
+        "address": "2200 Harbor Logistics Rd, Sacramento, CA 95815"
+      },
+      "payment_terms": "Prepaid",
+      "hazmat": false,
+      "client_po": "NW-PO-55812",
+      "special_instructions": "Delivery appointment required, call 24 hours ahead."
+    }
   },
   {
     "order_id": "ORD-4461",
@@ -136,13 +151,28 @@
     "status": "IN_TRANSIT",
     "sku": "LBC-7725",
     "quantity": 45,
-    "carrier": "Freight LTL",
+    "carrier": "Cardinal LTL",
     "opened": "2026-08-13",
     "sla_due": "2026-08-27",
     "days_open": 5,
     "value_usd": 1750.0,
     "last_event": "Delayed at hub 2026-08-16, still inside SLA",
-    "notes": "Monitor only. No action required yet."
+    "notes": "Monitor only. No action required yet.",
+    "freight": {
+      "handling_units": 2,
+      "unit_type": "pallet",
+      "weight_lb": 610,
+      "freight_class": "85",
+      "commodity": "Bath textiles and bar soap, boxed",
+      "consignee": {
+        "name": "Lumen Bath Co. Retail DC",
+        "address": "88 Commerce Park Dr, Raleigh, NC 27610"
+      },
+      "payment_terms": "Prepaid",
+      "hazmat": false,
+      "client_po": "LBC-PO-20877",
+      "special_instructions": null
+    }
   },
   {
     "order_id": "ORD-4480",
@@ -152,13 +182,28 @@
     "status": "HELD",
     "sku": "AWV-3315",
     "quantity": 220,
-    "carrier": "Freight LTL",
+    "carrier": "Cardinal LTL",
     "opened": "2026-08-07",
     "sla_due": "2026-08-14",
     "days_open": 11,
     "value_usd": 22000.0,
     "last_event": "Credit hold applied 2026-08-08 by Finance",
-    "notes": "Highest-value open hold. Release requires Finance sign-off."
+    "notes": "Highest-value open hold. Release requires Finance sign-off.",
+    "freight": {
+      "handling_units": 6,
+      "unit_type": "pallet",
+      "weight_lb": 3300,
+      "freight_class": "100",
+      "commodity": "Housewares, boxed",
+      "consignee": {
+        "name": "Alder & Vine Distribution",
+        "address": "415 Lakeshore Industrial Blvd, Cleveland, OH 44114"
+      },
+      "payment_terms": "Third party",
+      "hazmat": false,
+      "client_po": "AV-77310",
+      "special_instructions": null
+    }
   },
   {
     "order_id": "ORD-4491",
@@ -191,5 +236,67 @@
     "value_usd": 3100.0,
     "last_event": "Partial pick 2026-08-15, 40 of 75 units short",
     "notes": "Partial shortfall. Split shipment or hold decision needed."
+  },
+  {
+    "order_id": "ORD-4503",
+    "client": "Lumen Bath Co.",
+    "client_tier": "Growth",
+    "facility": "Richmond",
+    "status": "STAGED",
+    "sku": "LBC-7725",
+    "quantity": 180,
+    "carrier": "Cardinal LTL",
+    "opened": "2026-08-15",
+    "sla_due": "2026-08-29",
+    "days_open": 3,
+    "value_usd": 7000.0,
+    "last_event": "Picked, packed and staged at dock 4 2026-08-17",
+    "notes": "Ready for LTL pickup. BOL not yet prepared.",
+    "freight": {
+      "handling_units": 5,
+      "unit_type": "pallet",
+      "weight_lb": 2140,
+      "freight_class": "85",
+      "commodity": "Bath textiles and bar soap, boxed",
+      "consignee": {
+        "name": "Lumen Bath Co. Retail DC",
+        "address": "88 Commerce Park Dr, Raleigh, NC 27610"
+      },
+      "payment_terms": "Prepaid",
+      "hazmat": false,
+      "client_po": "LBC-PO-20931",
+      "special_instructions": "Liftgate required at delivery."
+    }
+  },
+  {
+    "order_id": "ORD-4510",
+    "client": "Halden Goods",
+    "client_tier": "Growth",
+    "facility": "Reno",
+    "status": "STAGED",
+    "sku": "HAL-2205",
+    "quantity": 36,
+    "carrier": "Cardinal LTL",
+    "opened": "2026-08-16",
+    "sla_due": "2026-08-30",
+    "days_open": 2,
+    "value_usd": 640.0,
+    "last_event": "Staged 2026-08-17, dimension and weight capture pending",
+    "notes": "Freight details incomplete.",
+    "freight": {
+      "handling_units": 1,
+      "unit_type": "pallet",
+      "weight_lb": null,
+      "freight_class": null,
+      "commodity": "Outdoor furniture components, boxed",
+      "consignee": {
+        "name": "Halden Goods Fulfillment",
+        "address": "1730 Desert Gateway Ave, Las Vegas, NV 89115"
+      },
+      "payment_terms": "Prepaid",
+      "hazmat": false,
+      "client_po": "HG-4410",
+      "special_instructions": null
+    }
   }
 ]
