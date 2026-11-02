@@ -285,13 +285,9 @@ with st.expander(f"Documents visible to {role}"):
 st.subheader("Ask Claude")
 question = st.text_area("Question")
 
-if is_public:
-    remaining = spend_guard.daily_remaining()
-    used = st.session_state.get("public_calls", 0)
-    st.caption(
-        f"Public demo budget: {spend_guard.PUBLIC_SESSION_LIMIT - used} left "
-        f"this session, {remaining} left today."
-    )
+# Reserved here, filled after the Ask block. Rendered in place, the budget line
+# was computed before a click was counted and so ran one question behind.
+budget_slot = st.empty()
 
 if st.button("Ask") and question.strip():
     init_usage_db()
@@ -340,6 +336,13 @@ if st.button("Ask") and question.strip():
                         st.session_state.get("public_calls", 0) + 1
                     )
 
+if is_public:
+    used = st.session_state.get("public_calls", 0)
+    budget_slot.caption(
+        f"Public demo budget: {spend_guard.PUBLIC_SESSION_LIMIT - used} left "
+        f"this session, {spend_guard.daily_remaining()} left today."
+    )
+
 if st.session_state.get("budget_message"):
     st.warning(st.session_state.budget_message)
 
@@ -360,10 +363,14 @@ if last_result:
         st.caption("No model call was made for this question.")
     else:
         render_answer(last_result["answer"])
+        # Bedrock's inputTokens excludes cached tokens, so showing it alone
+        # understated the prompt by the whole cached corpus.
+        cached = last_result.get("cache_read_tokens") or 0
         st.caption(
             f"{last_result['latency_ms']} ms · "
-            f"{last_result['input_tokens']:,} in / "
-            f"{last_result['output_tokens']:,} out tokens"
+            f"{last_result['total_input_tokens']:,} in"
+            + (f" ({cached:,} from cache)" if cached else "")
+            + f" / {last_result['output_tokens']:,} out tokens"
         )
 
     log_id = st.session_state.get("last_log_id")
